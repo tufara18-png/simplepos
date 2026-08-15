@@ -1,107 +1,70 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-type Json = Record<string, unknown>;
+type SimulationMode = "accepted" | "rejected" | "retryable" | "timeout";
+type MevEnvelope = { invoice_id:string|null; table_id:string|null; document_type:"addition"|"closing_receipt"|"credit_note"|"correction"; totals:{subtotal:number;gst:number;qst:number;total:number;tip:number;payment_total:number}; payment_method:string|null; items:Array<{name:string;price:number}>; simulation:SimulationMode };
+const round2=(n:unknown)=>{const v=Number(n??0);return Number.isFinite(v)?Math.round(v*100)/100:0};
 
-const money = (n: unknown) => {
-  const v = Number(n ?? 0);
-  return Number.isFinite(v) ? Math.round(v * 100) / 100 : 0;
-};
-
-class MevOrderEnvelope {
-  static fromInvoice(invoice: Json) {
+class MevEnvelopeFactory {
+  static from(input:Record<string,unknown>):MevEnvelope {
+    const requested=String(input.simulate??"accepted") as SimulationMode;
+    const simulation:SimulationMode=["accepted","rejected","retryable","timeout"].includes(requested)?requested:"accepted";
     return {
-      operation: "SALE_CLOSE",
-      source: "SIMPLEPOS",
-      environment: "SIMULATOR",
-      invoice_id: invoice.id ?? null,
-      table_id: invoice.table_id ?? null,
-      payment_method: invoice.payment_method ?? null,
-      amounts: {
-        subtotal: money(invoice.subtotal),
-        gst: money(invoice.gst),
-        qst: money(invoice.qst),
-        total: money(invoice.total),
-        tip: money(invoice.tip),
-        payment_total: money(invoice.payment_total),
-      },
-      items: Array.isArray(invoice.items) ? invoice.items : [],
-      client_timestamp: new Date().toISOString(),
+      invoice_id:typeof input.id==="string"?input.id:null,
+      table_id:typeof input.table_id==="string"?input.table_id:null,
+      document_type:(input.document_type as MevEnvelope["document_type"])??"closing_receipt",
+      totals:{subtotal:round2(input.subtotal),gst:round2(input.gst),qst:round2(input.qst),total:round2(input.total),tip:round2(input.tip),payment_total:round2(input.payment_total??input.total)},
+      payment_method:typeof input.payment_method==="string"?input.payment_method:null,
+      items:Array.isArray(input.items)?input.items.map((x:any)=>({name:String(x?.name??"Article"),price:round2(x?.price)})):[],
+      simulation
+    };
+  }
+}
+
+class SimulatorTransport {
+  async submit(envelope:MevEnvelope) {
+    const now=new Date();
+    const transactionId=`SIM-${now.toISOString().replace(/[-:.TZ]/g,"").slice(0,14)}-${crypto.randomUUID().slice(0,8).toUpperCase()}`;
+    const documentId=`SIM-DOC-${crypto.randomUUID().slice(0,12).toUpperCase()}`;
+
+    if(envelope.simulation==="timeout"){
+      await new Promise(r=>setTimeout(r,350));
+      return {environment:"SIMULATOR",certified:false,status:"retryable",transaction_id:transactionId,document_id:null,received_at:now.toISOString(),retryable:true,retry_after_seconds:60,error:{code:"SIM_TIMEOUT",message:"Timeout simulé. Transaction à retransmettre."},qr_payload:null,receipt:null};
+    }
+    if(envelope.simulation==="retryable"){
+      return {environment:"SIMULATOR",certified:false,status:"retryable",transaction_id:transactionId,document_id:null,received_at:now.toISOString(),retryable:true,retry_after_seconds:60,error:{code:"SIM_TEMPORARY",message:"Erreur temporaire simulée."},qr_payload:null,receipt:null};
+    }
+    if(envelope.simulation==="rejected"){
+      return {environment:"SIMULATOR",certified:false,status:"rejected",transaction_id:transactionId,document_id:null,received_at:now.toISOString(),retryable:false,error:{code:"SIM_REJECTED",message:"Transaction rejetée par le simulateur."},qr_payload:null,receipt:null};
+    }
+
+    return {
+      environment:"SIMULATOR",
+      certified:false,
+      status:"accepted",
+      transaction_id:transactionId,
+      document_id:documentId,
+      received_at:now.toISOString(),
+      retryable:false,
+      retry_after_seconds:null,
+      error:null,
+      // Intentionally non-fiscal. Never treat this as an official RQ QR payload.
+      qr_payload:`SIMPLEPOS|SIMULATED-NOT-FISCAL|${transactionId}|${envelope.totals.total.toFixed(2)}`,
+      receipt:{document_type:envelope.document_type,fiscal_document_id:documentId,invoice_id:envelope.invoice_id,totals:envelope.totals,payment_method:envelope.payment_method,generated_at:now.toISOString(),simulated:true},
+      warnings:["Simulation seulement — aucune transmission à Revenu Québec."]
     };
   }
 }
 
 class MevController {
-  async submit(invoice: Json) {
-    const request = MevOrderEnvelope.fromInvoice(invoice);
-    const now = new Date();
-    const tx = `SIM-${now.toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
-    const documentId = `DOC-${crypto.randomUUID().slice(0, 12).toUpperCase()}`;
-    const total = money(invoice.total);
-
-    // Simulation only. These field names model the architecture of a fiscal
-    // gateway; they do not claim to reproduce Revenu Quebec's private protocol.
-    return {
-      environment: "SIMULATOR",
-      certified: false,
-      status: "accepted",
-      remote_status: "completed",
-      retryable: false,
-      transaction_id: tx,
-      document_id: documentId,
-      invoice_id: invoice.id ?? null,
-      received_at: now.toISOString(),
-      total,
-      request_summary: request,
-      order_summary: {
-        table_id: invoice.table_id ?? null,
-        item_count: Array.isArray(invoice.items) ? invoice.items.length : 0,
-        payment_method: invoice.payment_method ?? null,
-      },
-      receipt: {
-        type: "CLOSING_RECEIPT",
-        transaction_id: tx,
-        document_id: documentId,
-        total,
-        qr_payload: `SIMPLEPOS|SIMULATOR|${tx}|${documentId}|${total.toFixed(2)}`,
-      },
-      qr_payload: `SIMPLEPOS|SIMULATOR|${tx}|${documentId}|${total.toFixed(2)}`,
-      warnings: [
-        "Simulation seulement — aucune transmission à Revenu Québec.",
-        "Le format final sera remplacé par les spécifications et certificats officiels MEV-WEB.",
-      ],
-    };
-  }
+  constructor(private transport:SimulatorTransport) {}
+  createEnvelope(input:Record<string,unknown>){return MevEnvelopeFactory.from(input)}
+  async submit(input:Record<string,unknown>){return this.transport.submit(this.createEnvelope(input))}
 }
 
-Deno.serve(async (req: Request) => {
-  if (req.method === "GET") {
-    return Response.json({
-      service: "SimplePOS MEV simulator",
-      status: "ready",
-      environment: "SIMULATOR",
-      certified: false,
-      architecture: ["order-envelope", "controller", "response-status", "receipt", "retryable-status"],
-    }, { headers: { "cache-control": "no-store" } });
-  }
-
-  if (req.method !== "POST") {
-    return Response.json({ error: "POST required" }, { status: 405 });
-  }
-
-  const invoice = await req.json().catch(() => ({})) as Json;
-  if (!invoice.id || money(invoice.total) < 0) {
-    return Response.json({
-      environment: "SIMULATOR",
-      certified: false,
-      status: "rejected",
-      remote_status: "validation_error",
-      retryable: false,
-      error_code: "SIM_INVALID_INVOICE",
-      error: "Invoice id and a valid total are required.",
-    }, { status: 422, headers: { "cache-control": "no-store" } });
-  }
-
-  return Response.json(await new MevController().submit(invoice), {
-    headers: { "cache-control": "no-store" },
-  });
+Deno.serve(async(req:Request)=>{
+  if(req.method==="GET") return Response.json({service:"SimplePOS MEV simulator",status:"ready",environment:"SIMULATOR",certified:false,states:["accepted","rejected","retryable","timeout"]},{headers:{"cache-control":"no-store"}});
+  if(req.method!=="POST") return new Response(JSON.stringify({error:"POST required"}),{status:405,headers:{"content-type":"application/json"}});
+  const input=await req.json().catch(()=>({}));
+  const result=await new MevController(new SimulatorTransport()).submit(input);
+  return new Response(JSON.stringify(result),{status:200,headers:{"content-type":"application/json","cache-control":"no-store"}});
 });
