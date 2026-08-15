@@ -40,7 +40,7 @@
       <div class="screen-head compact"><button class="btn ghost" data-nav="tablesScreen">← Tables</button><div><h1 id="orderTableLabel">Table</h1><button id="guestButton" class="text-action">1 client</button></div></div>
       <div class="order-layout">
         <section class="menu-pane"><div id="categories" class="category-tabs"></div><div id="products" class="product-grid"></div></section>
-        <aside class="ticket-pane"><div class="ticket-head"><div><h2 id="ticketTitle">Commande</h2><span id="ticketMeta" class="muted"></span></div></div><div id="ticketList" class="ticket-list"></div><div id="ticketTotals" class="totals"></div><div class="ticket-actions"><button class="btn" id="sendKitchen">Envoyer cuisine</button><button class="btn" id="printAddition">Addition</button><button class="btn primary" id="goPay">Payer</button></div></aside>
+        <aside class="ticket-pane"><div class="ticket-head"><div><h2 id="ticketTitle">Commande</h2><span id="ticketMeta" class="muted"></span></div></div><div id="ticketList" class="ticket-list"></div><div id="ticketTotals" class="totals"></div><div class="ticket-actions"><button class="btn" id="sendKitchen">Envoyer cuisine</button><button class="btn" id="printAddition" hidden>Imprimer ticket</button><button class="btn primary" id="goPay">Payer</button></div></aside>
       </div>
     </section>
 
@@ -94,5 +94,5 @@
   </main>
 </div>
 <div id="toast" class="toast"></div><div id="modal" class="modal"><div id="modalCard" class="modal-card"></div></div>
-<script src="/config.js"></script><script type="module" src="/app-v2.js"></script>
+<script src="/config.js"></script><script type="module" src="/app-v2.js"></script><script type="module" src="/payment-hook.js"></script>
 </body></html>
