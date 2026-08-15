@@ -28,8 +28,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = public
-as $$;
-
+as $$
 begin
   perform public.seed_simplepos_demo_products(new.id);
   return new;
