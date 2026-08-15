@@ -33,12 +33,12 @@ function buildTicket(){
     return name?`${name}${price?`  ${price}`:''}`:'';
   }).filter(Boolean);
   const totals=[...document.querySelectorAll('#ticketTotals .total-line')].map(row=>moneyText(row.textContent)).filter(Boolean);
-  return [`TICKET`,restaurant,table,'',...rows,'',...totals,''].join('\n');
+  return [`ADDITION`,restaurant,table,'',...rows,'',...totals,''].join('\n');
 }
 
 async function printCurrentTicket(){
   const printer=await getReceiptPrinter();
-  if(!printer?.ip_address)throw new Error('IP imprimante reçu manquante');
+  if(!printer?.ip_address)throw new Error('Configure l’imprimante reçu dans Réglages');
   const r=await fetch('/print',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
@@ -59,13 +59,13 @@ queueMicrotask(()=>{
     pay.textContent='Impression…';
     try{
       await printCurrentTicket();
-      toast('Ticket imprimé');
+      toast('Addition imprimée');
+      if(typeof original==='function')original.call(pay,event);
     }catch(err){
-      toast(`${err.message} — paiement ouvert quand même`,'error');
+      toast(`${err.message} — paiement bloqué`,'error');
     }finally{
       pay.textContent=oldText;
       pay.dataset.busy='0';
-      if(typeof original==='function')original.call(pay,event);
     }
   };
 });
