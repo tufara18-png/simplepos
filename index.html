@@ -7,6 +7,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/terminal.css">
+  <link rel="stylesheet" href="/floorplan.css">
   <title>SimplePOS</title>
 </head>
 <body>
@@ -40,7 +41,7 @@
       <div class="screen-head compact"><button class="btn ghost" data-nav="tablesScreen">← Tables</button><div><h1 id="orderTableLabel">Table</h1><button id="guestButton" class="text-action">1 client</button></div></div>
       <div class="order-layout">
         <section class="menu-pane"><div id="categories" class="category-tabs"></div><div id="products" class="product-grid"></div></section>
-        <aside class="ticket-pane"><div class="ticket-head"><div><h2 id="ticketTitle">Commande</h2><span id="ticketMeta" class="muted"></span></div></div><div id="ticketList" class="ticket-list"></div><div id="ticketTotals" class="totals"></div><div class="ticket-actions"><button class="btn" id="sendKitchen">Envoyer cuisine</button><button class="btn" id="printAddition" hidden>Imprimer ticket</button><button class="btn primary" id="goPay">Payer</button></div></aside>
+        <aside class="ticket-pane"><div class="ticket-head"><div><h2 id="ticketTitle">Commande</h2><span id="ticketMeta" class="muted"></span></div></div><div id="ticketList" class="ticket-list"></div><div id="ticketTotals" class="totals"></div><div class="ticket-actions"><button class="btn" id="sendKitchen">Envoyer cuisine</button><button class="btn" id="printAddition" hidden>Imprimer addition</button><button class="btn primary" id="goPay">Payer</button></div></aside>
       </div>
     </section>
 
@@ -51,30 +52,10 @@
         <aside class="checkout">
           <div id="selectedSummary" class="selected-summary"></div>
           <div id="payTotals" class="totals"></div>
-
-          <div class="checkout-section">
-            <div class="section-label">Diviser le solde</div>
-            <div class="segmented"><button class="seg" data-split="2">2</button><button class="seg" data-split="3">3</button><button class="seg" data-split="4">4</button><input id="customSplit" type="number" min="2" max="30" placeholder="X"></div>
-            <div id="splitBox"></div>
-          </div>
-
+          <div class="checkout-section"><div class="section-label">Diviser le solde</div><div class="segmented"><button class="seg" data-split="2">2</button><button class="seg" data-split="3">3</button><button class="seg" data-split="4">4</button><input id="customSplit" type="number" min="2" max="30" placeholder="X"></div><div id="splitBox"></div></div>
           <div class="amount-due-card"><span>Montant de la facture</span><strong id="baseDue">0,00 $</strong></div>
-
-          <div class="checkout-section payment-box">
-            <div class="section-label">Carte — terminal séparé</div>
-            <p class="muted">Le client choisit son pourboire sur le terminal. Entrez ici le total final affiché par le terminal.</p>
-            <label>Total débité sur le terminal<input id="terminalTotal" class="money-input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0,00"></label>
-            <div id="terminalTip" class="payment-preview">Entrez le total affiché sur le terminal.</div>
-            <button id="payCardBtn" class="btn primary full">Confirmer paiement carte</button>
-          </div>
-
-          <div class="checkout-section payment-box">
-            <div class="section-label">Comptant</div>
-            <div class="form-two"><label>Montant reçu<input id="cashReceived" class="money-input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0,00"></label><label>Pourboire laissé<input id="cashTip" class="money-input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0,00"></label></div>
-            <div id="cashChange" class="payment-preview">Entrez le montant reçu.</div>
-            <button id="payCashBtn" class="btn full">Confirmer comptant</button>
-          </div>
-
+          <div class="checkout-section payment-box"><div class="section-label">Carte — terminal séparé</div><p class="muted">Le client choisit son pourboire sur le terminal. Entrez ici le total final affiché par le terminal.</p><label>Total débité sur le terminal<input id="terminalTotal" class="money-input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0,00"></label><div id="terminalTip" class="payment-preview">Entrez le total affiché sur le terminal.</div><button id="payCardBtn" class="btn primary full">Confirmer paiement carte</button></div>
+          <div class="checkout-section payment-box"><div class="section-label">Comptant</div><div class="form-two"><label>Montant reçu<input id="cashReceived" class="money-input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0,00"></label><label>Pourboire laissé<input id="cashTip" class="money-input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0,00"></label></div><div id="cashChange" class="payment-preview">Entrez le montant reçu.</div><button id="payCashBtn" class="btn full">Confirmer comptant</button></div>
           <button id="payOtherBtn" class="btn ghost full">Autre — montant exact</button>
         </aside>
       </div>
@@ -83,7 +64,7 @@
     <section id="historyScreen" class="screen"><div class="screen-head"><div><h1>Historique</h1><p class="muted">Factures et statut MEV.</p></div><button id="refreshHistory" class="btn">Actualiser</button></div><div id="historyList" class="history-list"></div></section>
 
     <section id="settingsScreen" class="screen">
-      <div class="screen-head"><div><h1>Réglages</h1><p class="muted">Menu, paiements, imprimantes et environnement fiscal.</p></div></div>
+      <div class="screen-head"><div><h1>Réglages</h1><p class="muted">Plan de salle, menu, paiements, imprimantes et environnement fiscal.</p></div></div>
       <div class="settings-grid">
         <section class="settings-card"><div class="card-head"><div><h2>Menu</h2><p class="muted">Articles vendus dans le POS.</p></div><button id="newProductBtn" class="btn primary">Ajouter</button></div><div id="menuAdminList" class="admin-list"></div></section>
         <section class="settings-card"><h2>Paiements et pourboires</h2><label class="switch-row"><span>Enregistrer les pourboires du terminal externe</span><input id="tipsEnabled" type="checkbox"></label><p class="muted">Carte : SimplePOS calcule automatiquement le pourboire comme « total terminal − facture ». Comptant : le pourboire est saisi séparément pour ne pas confondre avec la monnaie à remettre.</p></section>
@@ -94,5 +75,5 @@
   </main>
 </div>
 <div id="toast" class="toast"></div><div id="modal" class="modal"><div id="modalCard" class="modal-card"></div></div>
-<script src="/config.js"></script><script type="module" src="/app-v2.js"></script><script type="module" src="/payment-hook.js"></script>
+<script src="/config.js"></script><script type="module" src="/app-v2.js"></script><script type="module" src="/payment-hook.js"></script><script type="module" src="/floorplan.js"></script>
 </body></html>
