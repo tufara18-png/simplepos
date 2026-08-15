@@ -1,8 +1,144 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1318"><link rel="manifest" href="/manifest.webmanifest"><link rel="stylesheet" href="/styles.css"><title>SimplePOS</title></head><body>
-<div class="app"><header><div class="brand">Simple<span>POS</span></div><div class="meta"><span class="status-dot"></span><span id="connectionLabel">Local prêt</span> • <span id="clock"></span></div></header><main>
-<section id="tablesScreen" class="screen active"><div class="toolbar"><button class="btn primary">Tables</button><button class="btn" data-nav="historyScreen">Historique</button><button class="btn" data-nav="settingsScreen">Réglages</button><button class="btn" id="resetDemo">Réinitialiser démo</button></div><div class="floor"><aside class="panel sections"><div class="section active">Salle</div></aside><section class="panel tables" id="tablesGrid"></section></div></section>
-<section id="orderScreen" class="screen"><div class="toolbar"><button class="btn" data-nav="tablesScreen">← Tables</button><button class="btn" id="orderTableLabel"></button><button class="btn" id="guestButton"></button></div><div class="order-layout"><section class="panel menu"><div class="categories" id="categories"></div><div class="products" id="products"></div></section><section class="panel ticket"><h2 id="ticketTitle"></h2><div class="small" id="ticketMeta"></div><div class="ticket-list" id="ticketList"></div><div class="total" id="ticketTotals"></div><div class="actions"><button class="btn primary" id="sendKitchen">Envoyer cuisine</button><button class="btn orange" id="printAddition">Addition</button><button class="btn green" id="goPay">Payer</button></div></section></div></section>
-<section id="payScreen" class="screen"><div class="toolbar"><button class="btn" data-nav="orderScreen">← Commande</button><button class="btn" id="payTableLabel"></button><span class="small">Sélectionne les articles du client ou divise le solde.</span></div><div class="pay-layout"><section class="panel items"><h2 style="margin-top:0">Qui paie quoi?</h2><div id="payItems"></div></section><aside class="panel paybox"><h2 style="margin-top:0">À payer</h2><div class="summary" id="selectedSummary"></div><div id="payTotals"></div><div style="margin:14px 0 8px;font-weight:900">Division égale du solde</div><div class="paymethods"><div class="method" data-split="2">÷ 2</div><div class="method" data-split="3">÷ 3</div><div class="method" data-split="4">÷ 4</div></div><div class="field"><label>Ou nombre personnalisé</label><input id="customSplit" inputmode="numeric" min="2" max="30" type="number" placeholder="ex. 5"></div><div id="splitBox"></div><div style="margin:14px 0 8px;font-weight:900">Mode de paiement</div><div class="paymethods"><div class="method" data-method="Carte">Carte</div><div class="method" data-method="Comptant">Comptant</div><div class="method" data-method="Autre">Autre</div></div><div class="notice">Le paiement crée une facture distincte. Les articles non payés restent sur la table. Quand le solde atteint 0 $, la table se ferme automatiquement.</div></aside></div></section>
-<section id="historyScreen" class="screen"><div class="toolbar"><button class="btn" data-nav="tablesScreen">← Tables</button><button class="btn primary">Historique</button></div><section class="panel history"><div id="historyList"></div></section></section>
-<section id="settingsScreen" class="screen"><div class="toolbar"><button class="btn" data-nav="tablesScreen">← Tables</button><button class="btn primary">Réglages</button></div><section class="panel settings"><h2>Impression</h2><div class="field"><label>Mode</label><select id="printerMode"><option value="browser">AirPrint / boîte d'impression</option><option value="bridge">Bridge ESC/POS</option><option value="none">Désactivé</option></select></div><div class="field"><label>URL du bridge</label><input id="bridgeUrl" placeholder="http://192.168.1.10:8787"></div><div class="field"><label>IP imprimante cuisine</label><input id="kitchenIp" placeholder="192.168.1.50"></div><div class="field"><label>IP imprimante reçu</label><input id="receiptIp" placeholder="192.168.1.51"></div><button class="btn primary" id="saveSettings">Enregistrer</button><button class="btn" id="testKitchen">Test cuisine</button><button class="btn" id="testReceipt">Test reçu</button><div class="notice warning">Le mode navigateur ouvre la boîte d'impression. Pour une impression silencieuse ESC/POS depuis iPad, utilise le bridge local ou, plus tard, un wrapper Capacitor natif.</div><h2>MEV-WEB</h2><div class="field"><label>Mode</label><select id="mevMode"><option value="mock">Simulation de développement</option><option value="disabled">Désactivé</option></select></div><div class="notice warning">Le connecteur MEV réel n'est volontairement pas inventé. Il sera branché sur les spécifications SW-73/SW-77 et les identifiants/certificats officiels.</div></section></section>
-</main></div><div id="toast" class="toast"></div><div id="paymentModal" class="modal"><div class="modal-card"><h2>Facture créée</h2><div id="receiptPreview"></div><div class="toolbar" style="margin-top:12px"><button class="btn primary" id="printReceipt">Imprimer</button><button class="btn" id="closeReceipt">Fermer</button></div></div></div><div id="printArea" style="display:none"></div><script type="module" src="/app.js"></script></body></html>
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#111827">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/styles.css">
+  <title>SimplePOS</title>
+</head>
+<body>
+<div id="authScreen" class="auth-screen">
+  <form id="authForm" class="auth-card">
+    <div class="wordmark">SimplePOS</div>
+    <h1>Connexion</h1>
+    <p class="muted">Les données du restaurant sont enregistrées dans Supabase.</p>
+    <label>Courriel<input id="authEmail" type="email" autocomplete="email" required></label>
+    <label>Mot de passe<input id="authPassword" type="password" autocomplete="current-password" minlength="6" required></label>
+    <button class="btn primary full" type="submit">Se connecter</button>
+    <button class="btn ghost full" type="button" id="signupBtn">Créer le compte</button>
+    <div id="authError" class="form-error"></div>
+  </form>
+</div>
+
+<div id="app" class="app hidden">
+  <aside class="sidebar">
+    <div class="wordmark inverse">SimplePOS</div>
+    <nav>
+      <button class="nav active" data-nav="tablesScreen">Tables</button>
+      <button class="nav" data-nav="historyScreen">Historique</button>
+      <button class="nav" data-nav="settingsScreen">Réglages</button>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="live-line"><span id="liveDot" class="live-dot"></span><span id="connectionLabel">Connexion…</span></div>
+      <button id="logoutBtn" class="nav subtle">Déconnexion</button>
+    </div>
+  </aside>
+
+  <main class="workspace">
+    <header class="topbar">
+      <div><strong id="restaurantName">Restaurant</strong><span id="pageContext" class="muted-inline"></span></div>
+      <div id="clock" class="clock"></div>
+    </header>
+
+    <section id="tablesScreen" class="screen active">
+      <div class="screen-head"><div><h1>Tables</h1><p class="muted">Touchez une table pour ouvrir ou reprendre la commande.</p></div><button id="newTableBtn" class="btn">Ajouter une table</button></div>
+      <div id="tablesGrid" class="table-grid"></div>
+    </section>
+
+    <section id="orderScreen" class="screen">
+      <div class="screen-head compact"><button class="btn ghost" data-nav="tablesScreen">← Tables</button><div><h1 id="orderTableLabel">Table</h1><button id="guestButton" class="text-action">1 client</button></div></div>
+      <div class="order-layout">
+        <section class="menu-pane">
+          <div id="categories" class="category-tabs"></div>
+          <div id="products" class="product-grid"></div>
+        </section>
+        <aside class="ticket-pane">
+          <div class="ticket-head"><div><h2 id="ticketTitle">Commande</h2><span id="ticketMeta" class="muted"></span></div></div>
+          <div id="ticketList" class="ticket-list"></div>
+          <div id="ticketTotals" class="totals"></div>
+          <div class="ticket-actions">
+            <button class="btn" id="sendKitchen">Envoyer cuisine</button>
+            <button class="btn" id="printAddition">Addition</button>
+            <button class="btn primary" id="goPay">Payer</button>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section id="payScreen" class="screen">
+      <div class="screen-head compact"><button class="btn ghost" data-nav="orderScreen">← Commande</button><div><h1 id="payTableLabel">Paiement</h1><p class="muted">Sélectionnez des articles ou payez le solde complet.</p></div></div>
+      <div class="payment-layout">
+        <section class="payment-items"><div id="payItems"></div></section>
+        <aside class="checkout">
+          <div id="selectedSummary" class="selected-summary"></div>
+          <div id="payTotals" class="totals"></div>
+
+          <div class="checkout-section">
+            <div class="section-label">Pourboire</div>
+            <div id="tipButtons" class="segmented"></div>
+            <div class="tip-custom"><input id="customTip" type="number" step="0.01" min="0" placeholder="Montant $"><button id="applyCustomTip" class="btn small">Appliquer</button></div>
+            <div id="tipSummary" class="muted"></div>
+          </div>
+
+          <div class="checkout-section">
+            <div class="section-label">Diviser le solde</div>
+            <div class="segmented"><button class="seg" data-split="2">2</button><button class="seg" data-split="3">3</button><button class="seg" data-split="4">4</button><input id="customSplit" type="number" min="2" max="30" placeholder="X"></div>
+            <div id="splitBox"></div>
+          </div>
+
+          <div class="checkout-section">
+            <div class="section-label">Mode de paiement</div>
+            <div class="payment-methods"><button data-method="card">Carte</button><button data-method="cash">Comptant</button><button data-method="other">Autre</button></div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section id="historyScreen" class="screen">
+      <div class="screen-head"><div><h1>Historique</h1><p class="muted">Factures et statut MEV.</p></div><button id="refreshHistory" class="btn">Actualiser</button></div>
+      <div id="historyList" class="history-list"></div>
+    </section>
+
+    <section id="settingsScreen" class="screen">
+      <div class="screen-head"><div><h1>Réglages</h1><p class="muted">Menu, pourboires, imprimantes et environnement fiscal.</p></div></div>
+      <div class="settings-grid">
+        <section class="settings-card">
+          <div class="card-head"><div><h2>Menu</h2><p class="muted">Articles vendus dans le POS.</p></div><button id="newProductBtn" class="btn primary">Ajouter</button></div>
+          <div id="menuAdminList" class="admin-list"></div>
+        </section>
+
+        <section class="settings-card">
+          <h2>Pourboires</h2>
+          <label class="switch-row"><span>Activer les pourboires</span><input id="tipsEnabled" type="checkbox"></label>
+          <label>Base de calcul<select id="tipBasis"><option value="after_tax">Après taxes</option><option value="before_tax">Avant taxes</option></select></label>
+          <div id="tipPresetAdmin" class="admin-list compact-list"></div>
+          <button id="addTipPreset" class="btn">Ajouter un pourcentage</button>
+        </section>
+
+        <section class="settings-card">
+          <h2>Imprimantes réseau</h2>
+          <p class="muted">Entrez simplement l’adresse IP. Port ESC/POS par défaut : 9100.</p>
+          <label>Imprimante cuisine<input id="kitchenIp" placeholder="192.168.1.50"></label>
+          <label>Imprimante reçu<input id="receiptIp" placeholder="192.168.1.51"></label>
+          <div class="button-row"><button id="savePrinters" class="btn primary">Enregistrer</button><button id="testKitchen" class="btn">Test cuisine</button><button id="testReceipt" class="btn">Test reçu</button></div>
+        </section>
+
+        <section class="settings-card">
+          <h2>MEV-WEB</h2>
+          <label>Environnement<select id="mevMode"><option value="simulator">Simulation réaliste</option><option value="live">Production — verrouillé</option><option value="disabled">Désactivé</option></select></label>
+          <div class="status-panel"><strong id="mevStatusTitle">Simulateur actif</strong><span id="mevStatusText">Les factures passent par le même pipeline que le futur connecteur officiel.</span></div>
+          <p class="muted tiny">Le mode production ne sera activé qu’avec les paramètres, certificats et exigences officiels de Revenu Québec.</p>
+        </section>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="toast" class="toast"></div>
+<div id="modal" class="modal"><div id="modalCard" class="modal-card"></div></div>
+<script src="/config.js"></script>
+<script type="module" src="/app.js"></script>
+</body>
+</html>
