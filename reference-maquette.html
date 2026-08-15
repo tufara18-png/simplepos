@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maquette Metribook - Flow restaurant type Cluster</title>
+<style>
+:root{
+  --bg:#0f1318; --panel:#171c22; --panel2:#1f2630; --line:#303946;
+  --text:#f5f7fa; --muted:#9ba7b5; --accent:#28c0d5; --green:#2ab56f;
+  --orange:#f4a33b; --danger:#e46161; --blue:#4d8ff7;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
+button{font:inherit;cursor:pointer}
+.app{min-height:100vh}
+header{height:58px;background:#13181e;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 18px}
+.brand{font-weight:900}.brand span{color:var(--accent)}
+.meta{color:var(--muted);font-size:13px}
+main{padding:14px}
+.screen{display:none}.screen.active{display:block}
+.btn{border:1px solid var(--line);background:#222a33;color:#fff;border-radius:9px;padding:10px 13px;font-weight:800}
+.btn.primary{background:var(--accent);color:#071318;border-color:transparent}
+.btn.green{background:var(--green);border-color:transparent}
+.btn.orange{background:var(--orange);color:#211508;border-color:transparent}
+.btn.red{background:var(--danger);border-color:transparent}
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.floor{display:grid;grid-template-columns:160px 1fr;gap:12px}
+.sections{padding:12px}.section{padding:11px;margin-bottom:8px;background:#222932;border:1px solid var(--line);border-radius:8px;font-weight:800}.section.active{background:#2b3541}
+.tables{padding:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.table{min-height:120px;padding:14px;border-radius:12px;border:2px solid #44505d;background:#202730;cursor:pointer}
+.table.open{border-color:var(--blue);background:#172638}.table.bill{border-color:var(--orange);background:#352818}.table.free{border-color:#2c8d5c;background:#19281f}
+.table h3{margin:0 0 7px;font-size:19px}.small{font-size:12px;color:var(--muted);line-height:1.45}
+.order-layout{display:grid;grid-template-columns:1.1fr .9fr;gap:12px}
+.menu,.ticket{padding:12px}
+.categories{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px}.cat{padding:8px 10px;background:#242c35;border:1px solid var(--line);border-radius:8px;font-size:12px;font-weight:900}.cat.active{background:var(--accent);color:#061317}
+.products{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.product{min-height:86px;border-radius:9px;border:1px solid var(--line);padding:10px;display:flex;flex-direction:column;justify-content:space-between;font-weight:800}
+.c1{background:#255c4a}.c2{background:#644c25}.c3{background:#663548}.c4{background:#3e4f83}.c5{background:#305d73}.c6{background:#655b2b}
+.ticket h2{margin:0 0 4px}.ticket-list{margin-top:12px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.row{display:grid;grid-template-columns:34px 1fr 80px;gap:8px;padding:10px;border-top:1px solid #2a323d;align-items:center;font-size:13px}.row:first-child{border-top:0}
+.qty{background:#2c3541;border-radius:6px;text-align:center;padding:4px;font-weight:900}
+.sent{font-size:10px;color:#7edaa8}.new{font-size:10px;color:#ffbd72}
+.total{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}.tr{display:flex;justify-content:space-between;margin:5px 0;color:#c3cbd5;font-size:13px}.tr.grand{font-size:21px;font-weight:900;color:#fff}
+.actions{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+.pay-layout{display:grid;grid-template-columns:1.1fr .9fr;gap:12px}
+.items{padding:12px}.paybox{padding:12px}
+.pay-item{display:grid;grid-template-columns:34px 1fr 90px 30px;gap:8px;align-items:center;padding:11px;border:1px solid var(--line);border-radius:9px;margin-bottom:8px;background:#1c232c}
+.pay-item.selected{border-color:var(--accent);background:#153039}
+.checkbox{width:22px;height:22px;border-radius:5px;border:2px solid #647283;display:flex;align-items:center;justify-content:center;font-weight:900}.selected .checkbox{background:var(--accent);border-color:var(--accent);color:#071318}
+.summary{background:#10151a;border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px}
+.paymethods{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.method{padding:16px 8px;background:#232b35;border:1px solid var(--line);border-radius:9px;text-align:center;font-weight:900}
+.receipt{display:none;margin-top:14px;background:#f6f6f2;color:#111;padding:18px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.receipt.show{display:block}.receipt hr{border:0;border-top:1px dashed #777}
+.notice{margin-top:10px;padding:10px;border:1px solid #2d7d54;background:#11261c;border-radius:9px;color:#baf1cf;font-size:12px}
+@media(max-width:900px){.tables{grid-template-columns:repeat(2,1fr)}.order-layout,.pay-layout{grid-template-columns:1fr}.products{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div class="brand">Metribook <span>Restaurant Mode</span></div>
+  <div class="meta">Serveur Alex â€¢ MEV connectÃ© â€¢ 19:42</div>
+</header>
+<main>
+
+<section id="tablesScreen" class="screen active">
+  <div class="toolbar">
+    <button class="btn primary">Plan de salle</button><button class="btn">Comptoir</button><button class="btn">Commandes ouvertes</button>
+  </div>
+  <div class="floor">
+    <aside class="panel sections">
+      <div class="section active">Salle</div><div class="section">Terrasse</div><div class="section">Bar</div>
+    </aside>
+    <section class="panel tables">
+      <div class="table open" onclick="showOrder()"><h3>Table 12</h3><div class="small">3 clients<br>10 items<br><strong style="color:#fff">86,40 $</strong><br>ouverte depuis 38 min</div></div>
+      <div class="table free"><h3>Table 13</h3><div class="small">Libre<br>4 places</div></div>
+      <div class="table bill"><h3>Table 14</h3><div class="small">4 clients<br>112,80 $<br>Addition demandÃ©e</div></div>
+      <div class="table open"><h3>Table 15</h3><div class="small">2 clients<br>34,25 $<br>ouverte depuis 16 min</div></div>
+      <div class="table free"><h3>Table 20</h3><div class="small">Libre<br>2 places</div></div>
+      <div class="table open"><h3>Table 21</h3><div class="small">2 clients<br>49,60 $<br>ouverte depuis 24 min</div></div>
+      <div class="table free"><h3>Table 22</h3><div class="small">Libre<br>4 places</div></div>
+      <div class="table open"><h3>Table 31</h3><div class="small">5 clients<br>148,10 $<br>ouverte depuis 44 min</div></div>
+    </section>
+  </div>
+</section>
+
+<section id="orderScreen" class="screen">
+  <div class="toolbar"><button class="btn" onclick="showTables()">â† Tables</button><button class="btn">Table 12</button><button class="btn">3 clients</button></div>
+  <div class="order-layout">
+    <section class="panel menu">
+      <div class="categories"><div class="cat active">TOUS</div><div class="cat">ENTRÃ‰ES</div><div class="cat">PLATS</div><div class="cat">BOISSONS</div><div class="cat">DESSERTS</div></div>
+      <div class="products">
+        <div class="product c1"><span>Burger classique</span><small>18,50 $</small></div>
+        <div class="product c2"><span>Poutine</span><small>14,00 $</small></div>
+        <div class="product c3"><span>Tartare saumon</span><small>22,00 $</small></div>
+        <div class="product c4"><span>BiÃ¨re blonde</span><small>8,00 $</small></div>
+        <div class="product c5"><span>Coke</span><small>4,25 $</small></div>
+        <div class="product c6"><span>Cheesecake</span><small>9,50 $</small></div>
+      </div>
+    </section>
+
+    <section class="panel ticket">
+      <h2 Table 12</h2>
+      <div class="small">10 articles â€¢ 3 clients</div>
+      <div class="ticket-list">
+        <div class="row"><div class="qty">1</div><div>Burger classique<br><span class="sent">ENVOYÃ‰</span></div><strong>18,50 $</strong></div>
+        <div class="row"><div class="qty">1</div><div>Burger classique<br><span class="sent">ENVOYÃ‰</span></div><strong>18,50 $</strong></div>
+        <div class="row"><div class="qty">1</div><div>Poutine<br><span class="sent">ENVOYÃ‰</span></div><strong>14,00 $</strong></div>
+        <div class="row"><div class="qty">1</div><div>BiÃ¨re blonde<br><span class="sent">ENVOYÃ‰</span></div><strong>8,00 $</strong></div>
+        <div class="row"><div class="qty">1</div><div>BiÃ¨re blonde<br><span class="sent">ENVOYÃ‰</span></div><strong>8,00 $</strong></div>
+        <div class="row"><div class="qty">1</div><div>Coke<br><span class="sent">ENVOYÃ‰</span></div><strong>4,25 $</strong></div>
+        <div class="row"><div class="qty">1</div><div>Cheesecake<br><span class="new">NOUVEAU</span></div><strong>9,50 $</strong></div>
+        <div class="row"><div class="qty">1</div><div>CafÃ©<br><span class="new">NOUVEAU</span></div><strong>3,75 $</strong></div>
+        <div class="row"><div class="qty">1</div><div>Frites<br><span class="sent">ENVOYÃ‰</span></div><strong>6,00 $</strong></div>
+        <div class="row"><div class="qty">1</div><div>Rabais</div><strong>-4,10 $</strong></div>
+      </div>
+      <div class="total"><div class="tr"><span>Sous-total</span><span>75,14 $</span></div><div class="tr"><span>Taxes</span><span>11,26 $</span></div><div class="tr grand"><span>Total</span><span>86,40 $</span></div></div>
+      <div class="actions">
+        <button class="btn">SÃ©parer</button><button class="btn primary">Envoyer cuisine</button><button class="btn orange">Addition</button><button class="btn green" onclick="showPay()">Payer</button>
+      </div>
+    </section>
+  </div>
+</section>
+
+<section id="payScreen" class="screen">
+  <div class="toolbar"><button class="btn" onclick="showOrder()">â† Commande</button><button class="btn">Table 12</button><span class="small">SÃ©lectionner exactement ce que le client paie</span></div>
+  <div class="pay-layout">
+    <section class="panel items">
+      <h2 style="margin-top:0">Qui paie quoi?</h2>
+      <div class="small" style="margin-bottom:12px">Exemple : le client dit Â« je paie mon burger, ma biÃ¨re et le cheesecake Â»ËÙ]‚‚ˆ]ˆÛ\ÜÏHœ^KZ][HÙ[XİYˆÛ˜ÛXÚÏHÙÙÛJ\ËNL	Ğ\™Ù\ˆÛ\ÜÚ\]YIÊH]ˆÛ\ÜÏH˜ÚXÚØ›Ş¸§$ÏÙ]]\™Ù\ˆÛ\ÜÚ\]YOÙ]İ›Û™ÏŒNL	Üİ›Û™ÏÜ[ÜÜ[Ù]‚ˆ]ˆÛ\ÜÏHœ^KZ][HˆÛ˜ÛXÚÏHÙÙÛJ\ËMŒ	Ôİ][™IÊH]ˆÛ\ÜÏH˜ÚXÚØ›ŞÙ]]”İ][™OÙ]İ›Û™ÏŒM	Üİ›Û™ÏÜ[ÜÜ[Ù]‚ˆ]ˆÛ\ÜÏHœ^KZ][HÙ[XİYˆÛ˜ÛXÚÏHÙÙÛJ\ËŒ	Ğšpê™H›Û™IÊH]ˆÛ\ÜÏH˜ÚXÚØ›Ş¸§$ÏÙ]]špê™H›Û™OÙ]İ›Û™Ï	Üİ›Û™ÏÜ[ÜÜ[Ù]‚ˆ]ˆÛ\ÜÏHœ^KZ][HˆÛ˜ÛXÚÏHÙÙÛJ\ËŒ	Ğšpê™H›Û™HÌ‰ÊH]ˆÛ\ÜÏH˜ÚXÚØ›ŞÙ]]špê™H›Û™HÌÙ]İ›Û™Ï	Üİ›Û™ÏÜ[ÜÜ[Ù]‚ˆ]ˆÛ\ÜÏHœ^KZ][HˆÛ˜ÛXÚÏHÙÙÛJ\ËNL	Ğ\™Ù\ˆÛ\ÜÚ\]YHÌ‰ÊH]ˆÛ\ÜÏH˜ÚXÚØ›ŞÙ]]\™Ù\ˆÛ\ÜÚ\]YHÌÙ]İ›Û™ÏŒNL	Üİ›Û™ÏÜ[ÜÜ[Ù]‚ˆ]ˆÛ\ÜÏHœ^KZ][HˆÛ˜ÛXÚÏHÙÙÛJ\ËŒK	ĞÛÚÙIÊH]ˆÛ\ÜÏH˜ÚXÚØ›ŞÙ]]ÛÚÙOÙ]İ›Û™ÏH	Üİ›Û™ÏÜ[ÜÜ[Ù]‚ˆ]ˆÛ\ÜÏHœ^KZ][HÙ[XİYˆÛ˜ÛXÚÏHÙÙÛJ\ËKL	ĞÚY\ÙXØZÙIÊH]ˆÛ\ÜÏH˜ÚXÚØ›Ş¸§$ÏÙ]]ÚY\ÙXØZÙOÙ]İ›Û™ÏKL	Üİ›Û™ÏÜ[ÜÜ[Ù]‚ˆ]ˆÛ\ÜÏHœ^KZ][HˆÛ˜ÛXÚÏHÙÙÛJ\ËËÍK	ĞØY°êIÊH]ˆÛ\ÜÏH˜ÚXÚØ›ŞÙ]]ØY°êOÙ]İ›Û™ÏŒËÍH	Üİ›Û™ÏÜ[ÜÜ[Ù]‚ˆ]ˆÛ\ÜÏHœ^KZ][HˆÛ˜ÛXÚÏHÙÙÛJ\Ë‹Œ	Ñœš]\ÉÊH]ˆÛ\ÜÏH˜ÚXÚØ›ŞÙ]]‘œš]\ÏÙ]İ›Û™Ï‹	Üİ›Û™ÏÜ[ÜÜ[Ù]‚ˆ]ˆÛ\ÜÏHœ^KZ][HˆÛ˜ÛXÚÏHÙÙÛJ\ËMŒL	Ô˜X˜Z\ÉÊH]ˆÛ\ÜÏH˜ÚXÚØ›ŞÙ]]”˜X˜Z\ÏÙ]İ›Û™Ï‹ML	Üİ›Û™ÏÜ[ÜÜ[Ù]‚ˆÜÙXİ[Û‚‚ˆ\ÚYHÛ\ÜÏHœ[™[^X›Ş‚ˆˆİ[OH›X\™Ú[‹]ÜŒ‘˜Xİ\™Hğê[Xİ[Û›°êYOÚ‚ˆ]ˆYHœÙ[XİY\İˆÛ\ÜÏHœİ[[X\HÙ]‚ˆ]ˆÛ\ÜÏHˆÜ[”Ûİ\Ë]İ[ğê[Xİ[Û›°êOÜÜ[Ü[ˆYHœİX•İ[ŒÍ‹	ÜÜ[Ù]‚ˆ]ˆÛ\ÜÏHˆÜ[•^\È\›ŞÜÜ[Ü[ˆYH^\ÈKÎH	ÜÜ[Ù]‚ˆ]ˆÛ\ÜÏHˆÜ˜[™Ü[°à^Y\ÜÜ[Ü[ˆYHœ^Uİ[KÎH	ÜÜ[Ù]‚‚ˆ]ˆİ[OH›X\™Ú[ŒMÙ›Û]ÙZYÚL“İH]š\Ù\ˆH˜Xİ\™OÙ]‚ˆ]ˆÛ\ÜÏHœ^[Y]ÙÈ‚ˆ]ˆÛ\ÜÏH›Y]ÙˆÛ˜ÛXÚÏHœÜ]š[
+ŠH°íÈˆ\œÛÛ›™\ÏÙ]‚ˆ]ˆÛ\ÜÏH›Y]ÙˆÛ˜ÛXÚÏHœÜ]š[
+ÊH°íÈÈ\œÛÛ›™\ÏÙ]‚ˆ]ˆÛ\ÜÏH›Y]ÙˆÛ˜ÛXÚÏHœÜ]š[
+
+H°íÈ\œÛÛ›™\ÏÙ]‚ˆÙ]‚‚ˆ]ˆYHœÜ]›ŞˆÛ\ÜÏHœİ[[X\Hˆİ[OH™\Ü^N››Û™NÛX\™Ú[‹]ÜŒLÙ]‚‚ˆ]ˆİ[OH›X\™Ú[ŒMÙ›Û]ÙZYÚL“[ÙHHZY[Y[Ù]‚ˆ]ˆÛ\ÜÏHœ^[Y]ÙÈ‚ˆ]ˆÛ\ÜÏH›Y]ÙˆÛ˜ÛXÚÏHœ^J	ĞØ\IÊHØ\OÙ]‚ˆ]ˆÛ\ÜÏH›Y]ÙˆÛ˜ÛXÚÏHœ^J	ĞÛÛ\[	ÊHÛÛ\[Ù]‚ˆ]ˆÛ\ÜÏH›Y]ÙˆÛ˜ÛXÚÏHœ^J	ÓX[Y[	ÊH“X[Y[Ù]‚ˆÙ]‚‚ˆ]ˆÛ\ÜÏH››İXÙH‚ˆ\°êÈZY[Y[Ù\È][\ÈÛÛ™]\°ê\ÈHÛÛH™\İ[HHX›Kˆ[™H˜Xİ\™HQUˆ\İ[˜İHÛÜİ\ˆÙHÛY[ˆ\È]]™\È][\È™\İ[İ]™\Èİ\ˆHX›HL‹‚ˆÙ]‚‚ˆ]ˆYHœ™XÙZ\ˆÛ\ÜÏHœ™XÙZ\‚ˆİ›Û™Ï”‘TÕUTS•SSÏÜİ›Û™Ïœ‚ˆX›HLˆ8 %ÛY[\Y[ˆ‚ˆ]ˆYHœ™XÙZ\][\ÈÙ]‚ˆ‚ˆ]ˆİ[OH™\Ü^N™›^Ú\İYKXÛÛ[œÜXÙKX™]ÙY[ˆÜ[•ÕSÜÜ[İ›Û™ÈYHœ™XÙZ\İ[Üİ›Û™ÏÙ]‚ˆ]ˆİ[OH›X\™Ú[‹]ÜŒLÙ›Û\Ú^™NŒL\”ZY[Y[ˆÜ[ˆYHœ™XÙZ\Y]ÙÜÜ[œ‘˜Xİ\™HQU‹UÑPˆğê[°ê\°êYOÙ]‚ˆÙ]‚ˆØ\ÚYO‚ˆÙ]‚ÜÙXİ[Û‚‚ÛXZ[‚Ù]‚ØÜš\‚›]Ù[XİYHÂˆÛ˜[YN‰Ğ\™Ù\ˆÛ\ÜÚ\]YIËšXÙNŒNLKˆÛ˜[YN‰Ğšpê™H›Û™IËšXÙNŒKˆÛ˜[YN‰ĞÚY\ÙXØZÙIËšXÙNKLB—NÂ‚™[˜İ[Ûˆ[Û™^JŠ^Ü™]\›ˆ‹ÓØØ[Tİš[™Ê	Ùœ‹PĞIËÛZ[š[][Qœ˜Xİ[Û‘YÚ]ÎŒ‹X^[][Qœ˜Xİ[Û‘YÚ]ÎŒŸJJÉÈ		ßB™[˜İ[ÛˆÚİÊY
+^ÙØİ[Y[œ]Y\TÙ[XİÜ[
+	ËœØÜ™Y[‰ÊK™›Ü‘XXÚ
+ÏOœË˜Û\ÜÓ\İœ™[[İ™J	ØXİ]™IÊJNÙØİ[Y[™Ù][[Y[RY
+Y
+K˜Û\ÜÓ\İ˜Y
+	ØXİ]™IÊ_B™[˜İ[ÛˆÚİÕX›\Ê
+^ÜÚİÊ	İX›\ÔØÜ™Y[‰Ê_B™[˜İ[ÛˆÚİÓÜ™\Š
+^ÜÚİÊ	ÛÜ™\”ØÜ™Y[‰Ê_B™[˜İ[ÛˆÚİÔ^J
+^Ü™[™\Š
+NÜÚİÊ	Ü^TØÜ™Y[‰Ê_B™[˜İ[ÛˆÙÙÛJ[šXÙK˜[YJ^ÂˆÛÛœİ\ÔÙ[Y[˜Û\ÜÓ\İÙÙÛJ	ÜÙ[XİY	ÊNÂˆ[œ]Y\TÙ[XİÜŠ	Ë˜ÚXÚØ›Ş	ÊK^ÛÛ[Z\ÔÙ[Éø§$ÉÎ‰ÉÎÂˆYŠ\ÔÙ[
+^ÜÙ[XİYœ\Ú
+Û˜[YKšXÙ_J_H[ÙHÜÙ[XİY\Ù[XİY™š[\ŠO›˜[YHOO[˜[YJ_Bˆ™[™\Š
+NÂŸB™[˜İ[Ûˆ™[™\Š
+^ÂˆÛÛœİ›ŞYØİ[Y[™Ù][[Y[RY
+	ÜÙ[XİY\İ	ÊNÂˆ›Şš[›™\’S\Ù[XİY›[™İÜÙ[XİY›X\
+O˜]ˆÛ\ÜÏHˆÜ[‰Ş›˜[Y_OÜÜ[Ü[‰Û[Û™^JœšXÙJ_OÜÜ[Ù]˜
+Kš›Ú[Š	ÉÊN‰Ï]ˆÛ\ÜÏHœÛX[]Xİ[ˆ][Hğê[Xİ[Û›°êOÙ]‰ÎÂˆÛÛœİİX\Ù[XİYœ™YXÙJ
+KŠOO˜JØ‹œšXÙK
+NÂˆÛÛœİ^SX]›X^
+İXŠŒŒMMÍJNÂˆØİ[Y[™Ù][[Y[RY
+	ÜİX•İ[	ÊK^ÛÛ[[[Û™^JİXŠNÂˆØİ[Y[™Ù][[Y[RY
+	İ^\ÉÊK^ÛÛ[[[Û™^J^
+NÂˆØİ[Y[™Ù][[Y[RY
+	Ü^Uİ[	ÊK^ÛÛ[[[Û™^JİXŠİ^
+NÂŸB™[˜İ[ÛˆÜ]š[
+Š^ÂˆÛÛœİİX\Ù[XİYœ™YXÙJ
+KŠOO˜JØ‹œšXÙK
+NÂˆÛÛœİ^SX]›X^
+İXŠŒŒMMÍJNÂˆÛÛœİİ[\İXŠİ^ÂˆÛÛœİXXÚ]İ[ÛÂˆÛÛœİ›ŞYØİ[Y[™Ù][[Y[RY
+	ÜÜ]›Ş	ÊNÂˆ›Şœİ[K™\Ü^OIØ›ØÚÉÎÂˆ›Şš[›™\’SX]ˆİ[OH™›Û]ÙZYÚLÛX\™Ú[‹X›İÛNœ‘]š\Ú[Ûˆ[ˆ	ÛŸHZY[Y[È0êYØ]^Ù]‚ˆ	Ğ\œ˜^K™œ›ÛJÛ[™İ›ŸK
+ËJOO˜]ˆÛ\ÜÏHˆÜ[”\œÛÛ›™H	ÚJÌ_OÜÜ[İ›Û™Ï‰Û[Û™^JXXÚ
+_OÜİ›Û™ÏÙ]˜
+Kš›Ú[Š	ÉÊ_Bˆ]ˆÛ\ÜÏHœÛX[ˆİ[OH›X\™Ú[‹]ÜœÚ\]YHZY[Y[]]0ê™H[˜ØZ\ÜğêHğê\\°ê[Y[ˆ[™H›Ú\È\È	ÛŸH\È^pêY\ËH˜Xİ\™Hğê[Xİ[Û›°êYH\İÛÛ0êYKÙ]˜ÂŸB‚™[˜İ[Ûˆ^JY]Ù
+^ÂˆÛÛœİİX\Ù[XİYœ™YXÙJ
+KŠOO˜JØ‹œšXÙK
+NÂˆÛÛœİ^SX]›X^
+İXŠŒŒMMÍJNÂˆÛÛœİİ[\İXŠİ^ÂˆØİ[Y[™Ù][[Y[RY
+	Ü™XÙZ\][\ÉÊKš[›™\’S\Ù[XİY›X\
+O˜]ˆİ[OH™\Ü^N™›^Ú\İYKXÛÛ[œÜXÙKX™]ÙY[ˆÜ[‰Ş›˜[Y_OÜÜ[Ü[‰Û[Û™^JœšXÙJ_OÜÜ[Ù]˜
+Kš›Ú[Š	ÉÊNÂˆØİ[Y[™Ù][[Y[RY
+	Ü™XÙZ\İ[	ÊK^ÛÛ[[[Û™^Jİ[
+NÂˆØİ[Y[™Ù][[Y[RY
+	Ü™XÙZ\Y]Ù	ÊK^ÛÛ[[Y]ÙÂˆØİ[Y[™Ù][[Y[RY
+	Ü™XÙZ\	ÊK˜Û\ÜÓ\İ˜Y
+	ÜÚİÉÊNÂŸBœ™[™\Š
+NÂÜØÜš\‚Ø›ÙO‚Ú[‚
