@@ -14,7 +14,7 @@
 <div id="authScreen" class="auth-screen">
   <form id="authForm" class="auth-card">
     <div class="wordmark">SimplePOS</div><h1>Connexion</h1>
-    <p class="muted">Les données du restaurant sont synchronisées avec Supabase.</p>
+    <p class="muted">Les données du restaurant sont synchronisées avec Supabase et conservées localement pour le mode hors ligne.</p>
     <label>Courriel<input id="authEmail" type="email" autocomplete="email" required></label>
     <label>Mot de passe<input id="authPassword" type="password" autocomplete="current-password" minlength="6" required></label>
     <button class="btn primary full" type="submit">Se connecter</button>
@@ -64,16 +64,16 @@
     <section id="historyScreen" class="screen"><div class="screen-head"><div><h1>Historique</h1><p class="muted">Factures et statut MEV.</p></div><button id="refreshHistory" class="btn">Actualiser</button></div><div id="historyList" class="history-list"></div></section>
 
     <section id="settingsScreen" class="screen">
-      <div class="screen-head"><div><h1>Réglages</h1><p class="muted">Plan de salle, menu, paiements, imprimantes et environnement fiscal.</p></div></div>
+      <div class="screen-head"><div><h1>Réglages</h1><p class="muted">Plan de salle, menu, paiements, imprimantes, bridge local et environnement fiscal.</p></div></div>
       <div class="settings-grid">
         <section class="settings-card"><div class="card-head"><div><h2>Menu</h2><p class="muted">Articles vendus dans le POS.</p></div><button id="newProductBtn" class="btn primary">Ajouter</button></div><div id="menuAdminList" class="admin-list"></div></section>
         <section class="settings-card"><h2>Paiements et pourboires</h2><label class="switch-row"><span>Enregistrer les pourboires du terminal externe</span><input id="tipsEnabled" type="checkbox"></label><p class="muted">Carte : SimplePOS calcule automatiquement le pourboire comme « total terminal − facture ». Comptant : le pourboire est saisi séparément pour ne pas confondre avec la monnaie à remettre.</p></section>
-        <section class="settings-card"><h2>Imprimantes réseau</h2><p class="muted">Adresse IP directe, port ESC/POS 9100.</p><label>Imprimante cuisine<input id="kitchenIp" placeholder="192.168.1.50"></label><label>Imprimante reçu<input id="receiptIp" placeholder="192.168.1.51"></label><div class="button-row"><button id="savePrinters" class="btn primary">Enregistrer</button><button id="testKitchen" class="btn">Test cuisine</button><button id="testReceipt" class="btn">Test reçu</button></div></section>
+        <section class="settings-card"><h2>Imprimantes réseau</h2><p class="muted">Adresse IP directe, port ESC/POS 9100. La PWA envoie l'impression au bridge local.</p><label>Imprimante cuisine<input id="kitchenIp" placeholder="192.168.1.50"></label><label>Imprimante reçu<input id="receiptIp" placeholder="192.168.1.51"></label><div class="button-row"><button id="savePrinters" class="btn primary">Enregistrer</button><button id="testKitchen" class="btn">Test cuisine</button><button id="testReceipt" class="btn">Test reçu</button></div></section>
         <section class="settings-card"><h2>MEV-WEB</h2><label>Environnement<select id="mevMode"><option value="simulator">Simulation réaliste</option><option value="live">Production — verrouillé</option><option value="disabled">Désactivé</option></select></label><div class="status-panel"><strong>Pipeline fiscal actif</strong><span>Le simulateur utilise le même flux facture → transmission → réponse → journal que le futur connecteur officiel.</span></div></section>
       </div>
     </section>
   </main>
 </div>
 <div id="toast" class="toast"></div><div id="modal" class="modal"><div id="modalCard" class="modal-card"></div></div>
-<script src="/config.js"></script><script type="module" src="/app-v2.js"></script><script type="module" src="/payment-hook.js"></script><script type="module" src="/floorplan.js"></script><script type="module" src="/mev-runtime.js"></script>
+<script src="/config.js"></script><script src="/local-first.js"></script><script type="module" src="/app-v2.js"></script><script type="module" src="/payment-hook.js"></script><script type="module" src="/floorplan.js"></script><script type="module" src="/mev-runtime.js"></script><script type="module" src="/bridge-ui.js"></script>
 </body></html>
