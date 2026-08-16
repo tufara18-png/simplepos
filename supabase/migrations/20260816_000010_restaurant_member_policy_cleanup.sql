@@ -1,0 +1,4 @@
+drop policy if exists "owner manages members" on public.restaurant_members;
+create policy "owner inserts members" on public.restaurant_members for insert to authenticated with check (exists (select 1 from public.restaurants r where r.id=restaurant_members.restaurant_id and r.owner_id=(select auth.uid())));
+create policy "owner updates members" on public.restaurant_members for update to authenticated using (exists (select 1 from public.restaurants r where r.id=restaurant_members.restaurant_id and r.owner_id=(select auth.uid()))) with check (exists (select 1 from public.restaurants r where r.id=restaurant_members.restaurant_id and r.owner_id=(select auth.uid())));
+create policy "owner deletes members" on public.restaurant_members for delete to authenticated using (exists (select 1 from public.restaurants r where r.id=restaurant_members.restaurant_id and r.owner_id=(select auth.uid())));
