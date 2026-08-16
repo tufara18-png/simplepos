@@ -13,6 +13,8 @@ jobs:
         with:
           node-version: 22
       - run: node --check app-v2.js
+      - run: node --check local-first.js
+      - run: node --check bridge-ui.js
       - run: node --check payment-hook.js
       - run: node --check floorplan.js
       - run: node --check mev-runtime.js
