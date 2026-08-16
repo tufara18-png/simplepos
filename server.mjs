@@ -42,4 +42,5 @@ async function handler(req,res){try{
 
 const useTls=TLS_CERT&&TLS_KEY;
 const server=useTls?https.createServer({cert:fs.readFileSync(TLS_CERT),key:fs.readFileSync(TLS_KEY)},handler):http.createServer(handler);
+if(!BRIDGE_TOKEN)console.warn('AVERTISSEMENT: BRIDGE_TOKEN non défini — tout appareil sur le réseau local peut envoyer des commandes au bridge. Définir BRIDGE_TOKEN avant un déploiement en restaurant.');
 server.listen(PORT,'0.0.0.0',()=>console.log(`SimplePOS bridge: ${useTls?'https':'http'}://0.0.0.0:${PORT}`));

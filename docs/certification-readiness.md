@@ -15,7 +15,14 @@
 - addition obligatoire avant l'écran de paiement dans le workflow actuel;
 - carte externe, comptant, pourboire, paiement partiel et division;
 - RLS par restaurant;
-- simulateur explicitement non fiscal.
+- simulateur explicitement non fiscal;
+- chaîne fiscale (`invoices`, `invoice_items`, `payments`, `mev_attempts`, `mev_transactions`, `mev_receipts`) verrouillée en ajout seul: aucun rôle staff ne peut modifier ou supprimer une ligne une fois écrite, les transitions d'état passent par des fonctions RPC qui revérifient l'appartenance au restaurant;
+- numérotation séquentielle sans trou des factures par restaurant (`invoices.invoice_number`);
+- rejet en base des factures dont la TPS/TVQ/total déclarés ne correspondent pas au sous-total et aux taux configurés.
+
+## Limite connue restante
+
+Le sous-total lui-même reste calculé côté client à partir des prix du menu, puis simplement contrôlé par rapport aux taux de taxes en base (voir ci-dessus). Une reconstruction complète du sous-total à partir de `order_items` côté serveur (dans une fonction RPC `finalize_invoice` unique) fermerait aussi ce dernier vecteur, mais touche à la logique de paiement partagé/divisé et n'a pas été faite dans cette passe pour ne pas déstabiliser ce flux sans tests d'intégration réels contre le projet Supabase de production.
 
 ## Dépendances officielles encore nécessaires
 

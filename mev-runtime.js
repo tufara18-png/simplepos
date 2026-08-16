@@ -246,11 +246,10 @@ async function processQueue(rid, force = false) {
   for (const tx of rows || []) {
     if (!force && tx.retry_after && new Date(tx.retry_after).getTime() > now) continue;
     if (Number(tx.attempt_count || 0) >= 8) {
-      await rest(`mev_transactions?id=eq.${tx.id}`, { method: 'PATCH', body: { status: 'failed', last_error_message: 'Nombre maximal de tentatives atteint', updated_at: new Date().toISOString() } });
-      await rest(`invoices?id=eq.${tx.invoice_id}`, { method: 'PATCH', body: { status: 'failed' } });
+      await rest('rpc/mev_transaction_mark_exhausted', { method: 'POST', body: { p_invoice_id: tx.invoice_id, p_message: 'Nombre maximal de tentatives atteint' } });
       continue;
     }
-    await rest(`mev_transactions?id=eq.${tx.id}`, { method: 'PATCH', body: { status: 'sending', sent_at: new Date().toISOString(), updated_at: new Date().toISOString() } });
+    await rest('rpc/mev_transaction_mark_sending', { method: 'POST', body: { p_invoice_id: tx.invoice_id } });
     await transmitSimulator(rid, tx.invoice_id);
     await sleep(120);
   }
@@ -304,15 +303,9 @@ async function processUnprintedReceipts(rid) {
   for (const receipt of rows || []) {
     try {
       await printReceiptRow(rid, receipt);
-      await rest(`mev_receipts?id=eq.${receipt.id}`, {
-        method: 'PATCH',
-        body: { printed_at: new Date().toISOString(), print_attempts: Number(receipt.print_attempts || 0) + 1, last_print_error: null },
-      });
+      await rest('rpc/mev_receipt_mark_printed', { method: 'POST', body: { p_receipt_id: receipt.id } });
     } catch (e) {
-      await rest(`mev_receipts?id=eq.${receipt.id}`, {
-        method: 'PATCH',
-        body: { print_attempts: Number(receipt.print_attempts || 0) + 1, last_print_error: e.message },
-      });
+      await rest('rpc/mev_receipt_mark_print_failed', { method: 'POST', body: { p_receipt_id: receipt.id, p_message: e.message } });
       break;
     }
   }

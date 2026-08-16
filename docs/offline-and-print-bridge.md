@@ -50,13 +50,15 @@ POST /print
 
 Le bridge refuse par défaut les IP d’imprimantes qui ne sont pas privées/locales.
 
-### Jeton optionnel
+### Jeton
 
 ```bash
 BRIDGE_TOKEN="une-valeur-longue" npm start
 ```
 
 Entrer la même valeur dans **Réglages -> Bridge local** sur l’iPad.
+
+Sans `BRIDGE_TOKEN`, n'importe quel appareil sur le réseau local du restaurant peut envoyer des commandes d'impression au bridge. Le serveur démarre quand même sans jeton (pratique pour un test rapide) mais affiche un avertissement dans sa console. Toujours définir `BRIDGE_TOKEN` avant un déploiement réel en restaurant.
 
 ### HTTPS
 
