@@ -18,9 +18,8 @@ jobs:
       - run: node --check bridge-ui.js
       - run: node --check business-suite.js
       - run: node --check fixed-expenses.js
-      - run: node --check break-even.js
       - run: node --check payment-hook.js
-      - run: node --check floorplan.js
       - run: node --check mev-runtime.js
+      - run: node --check ui-shell.js
       - run: node --check server.mjs
       - run: node tests.mjs
