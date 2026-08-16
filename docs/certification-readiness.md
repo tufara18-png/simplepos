@@ -22,9 +22,20 @@
 - coordonnées de l'entreprise (nom légal, adresse, téléphone, numéros d'inscription TPS/TVQ) saisissables dans Réglages par le ou la propriétaire du compte, et reprises sur l'addition, le reçu de fermeture et la réimpression;
 - mentions obligatoires alignées sur le vocabulaire confirmé (« FACTURE ORIGINALE », « PAIEMENT REÇU »).
 
-## Limite connue restante
+- journal fiscal en ajout seul (`fiscal_events`) : erreurs MEV avec code de retour, activation/désactivation du mode hors ligne, ajouts/retraits d'articles après impression de l'addition, additions révisées;
+- référence de transaction (`invoices.replaces_invoice_id`) prête pour les notes de crédit et corrections;
+- compteur de révisions d'addition (`orders.addition_print_count`) : « FACTURE ORIGINALE » au premier tirage, « FACTURE RÉVISÉE / Remplace N factures » ensuite;
+- marquage « PROBLÈME DE COMMUNICATION » sur les documents produits hors ligne (`invoices.produced_offline`);
+- contrôle d'intégrité des lignes de facture en base : `line_total` doit égaler quantité × prix unitaire, et le prix unitaire facturé doit correspondre à celui de l'article réellement commandé;
+- validation des noms d'articles contre l'alphabet accepté par le MEV-WEB (2–128 caractères, pas d'apostrophe courbe, de ligature œ, de crochets ni d'emoji), couverte par des tests unitaires.
 
-Le sous-total lui-même reste calculé côté client à partir des prix du menu, puis simplement contrôlé par rapport aux taux de taxes en base (voir ci-dessus). Une reconstruction complète du sous-total à partir de `order_items` côté serveur (dans une fonction RPC `finalize_invoice` unique) fermerait aussi ce dernier vecteur, mais touche à la logique de paiement partagé/divisé et n'a pas été faite dans cette passe pour ne pas déstabiliser ce flux sans tests d'intégration réels contre le projet Supabase de production.
+## Limites connues restantes
+
+**Sous-total des paiements par montant (division).** Le contrôle d'intégrité ci-dessus couvre le chemin normal (paiement d'articles sélectionnés, qui insère des `invoice_items`). Le chemin « division par montant » n'insère aucune ligne de facture, donc rien n'y valide le sous-total côté serveur. Fermer ça demanderait une RPC `finalize_invoice` unique qui recalcule tout depuis `order_items`, ce qui touche la logique de paiement partagé et n'a pas été fait sans tests d'intégration réels contre le projet Supabase de production.
+
+**Noms des comptes employés.** La validation d'alphabet est appliquée aux articles du menu, pas encore aux noms d'utilisateurs (SimplePOS n'a pas d'écran de gestion du personnel pour l'instant).
+
+**Annulation de commande complète.** L'annulation d'un article est journalisée, mais il n'existe pas encore de flux « vider la commande » avec reçu d'annulation dédié.
 
 ## Ce que le SW-76 (guide public) exige concrètement
 
@@ -32,21 +43,21 @@ Le SW-76 (*Renseignements généraux sur l'adaptation des SEV*, version 2025-06)
 
 - un « serveur distant » (notre `mev-gateway`) ne peut ni créer, ni modifier, ni supprimer de transactions, seulement les acheminer au MEV-WEB, notre architecture actuelle respecte déjà cette contrainte;
 - numéro de transaction unique par jour civil (notre numérotation par restaurant, jamais réutilisée, satisfait déjà cette exigence);
-- toute transaction qui en modifie une autre (note de crédit, correction, reçu de fermeture après addition) doit inclure une référence à la transaction d'origine, **pas encore implémenté**, aucune colonne de ce type dans `mev_attempts`/`invoices` actuellement;
+- toute transaction qui en modifie une autre (note de crédit, correction, reçu de fermeture après addition) doit inclure une référence à la transaction d'origine : colonne `invoices.replaces_invoice_id` en place, reste à la remplir quand les notes de crédit existeront;
 - signature numérique unique par requête, bloqué sur les certificats Revenu Québec (déjà su);
-- documents obligatoires : reçu de fermeture, note de crédit, reproduction. Facultatifs : soumission, estimation, addition. **Deux documents obligatoires manquent complètement** : le **duplicata** (copie interne marquée « *** COPIE DU COMMERÇANT *** » / « NE PAS REMETTRE AU CLIENT ») et le **rapport de l'utilisateur** (document envoyé à Revenu Québec à chaque affichage/impression, avec sommaire annuel des ventes);
+- documents obligatoires : reçu de fermeture, note de crédit, reproduction. Facultatifs : soumission, estimation, addition. Le **duplicata** et le **rapport de l'utilisateur** sont maintenant produits; la **note de crédit** (remboursement) reste à faire;
 - conservation 6 ans incluant toutes les modifications/annulations, pas seulement l'état final, c'est exactement ce que verrouille la chaîne fiscale en ajout seul;
-- journalisation exigée des modifications post-facture, des messages d'erreur MEV-WEB avec leur code de retour, et de l'activation/désactivation du mode hors ligne. `mev_attempts` journalise déjà les réponses MEV, pas encore les deux autres.
+- journalisation des modifications post-facture, des messages d'erreur MEV-WEB avec leur code de retour, et de l'activation/désactivation du mode hors ligne : couverte par `fiscal_events`.
 
 ## Confirmations de fournisseurs déjà certifiés
 
 Le SW-73 étant verrouillé, ces détails viennent de fournisseurs POS déjà certifiés WEB-SRM qui documentent publiquement leur implémentation (Lightspeed Restaurant K-Series en premier lieu). À prendre comme un signal fort, pas une garantie, puisque ce n'est pas Revenu Québec qui les publie.
 
-- **Mode de paiement obligatoire manquant** : Revenu Québec exige que tout SEV supporte « **Parti sans payer** » (client qui quitte sans payer). SimplePOS n'a que carte/comptant/autre.
-- **Flux d'annulation de commande obligatoire** : le SEV doit permettre de vider une commande et imprimer un reçu documentant l'annulation avec la liste des articles annulés. On a l'annulation d'un article, pas celle d'une commande complète avec reçu dédié.
-- **Vocabulaire confirmé** sur les documents (déjà appliqué sur l'addition et le reçu de fermeture) : addition non modifiée = « Facture originale », modifiée après impression = « Facture révisée » avec compteur (« Remplace 2 factures », pas encore fait), reçu de fermeture = « Paiement reçu », réimpression client = « Reproduction », copie interne = « *** COPIE DU COMMERÇANT *** » / « NE PAS REMETTRE AU CLIENT », document produit hors ligne = « Problème de communication » (pas encore fait).
-- **Règles de validation des noms** : noms d'articles et de comptes employés limités à un alphabet précis (lettres accentuées françaises, chiffres, ponctuation courante), 2 à 128 caractères, pas d'espace en début/fin, pas d'emoji. Pas encore validé côté SimplePOS.
-- **Articles à 0 $ obligatoirement visibles** sur le reçu client, impossible de masquer un item gratuit/comp.
+- **Mode de paiement « Parti sans payer »** exigé de tout SEV : implémenté.
+- **Flux d'annulation de commande obligatoire** : le SEV doit permettre de vider une commande et imprimer un reçu documentant l'annulation avec la liste des articles annulés. On a l'annulation d'un article (journalisée), pas encore celle d'une commande complète avec reçu dédié.
+- **Vocabulaire confirmé** sur les documents : addition non modifiée = « Facture originale », modifiée après impression = « Facture révisée » avec compteur (« Remplace N factures »), reçu de fermeture = « Paiement reçu », copie interne = « *** COPIE DU COMMERÇANT *** » / « NE PAS REMETTRE AU CLIENT », document produit hors ligne = « Problème de communication ». Tous appliqués. Reste « Reproduction » pour la réimpression destinée à la clientèle (distincte du duplicata interne).
+- **Règles de validation des noms** : appliquées aux articles du menu, couvertes par tests unitaires. Pas encore aux comptes employés (pas d'écran de gestion du personnel).
+- **Articles à 0 $ obligatoirement visibles** sur le reçu client : rien ne les filtre, donc déjà conforme.
 - Pénalités en cas de non-conformité : jusqu'à 25 000 $ d'amende, combinable avec jusqu'à 6 mois de prison dans certains cas.
 
 ## Observations d'un SEV concurrent déjà certifié (à confirmer, pas une source officielle)
@@ -77,6 +88,17 @@ Ces éléments ne doivent pas être inventés dans le code. Ils seront branchés
 8. environnement de certification;
 9. code d'autorisation et certificat numérique du serveur distant lorsque requis;
 10. exécution et réussite des cas d'essai puis démonstration à Revenu Québec.
+
+## Ce qui reste strictement bloqué sur le SW-73
+
+Tout le reste est préparable sans être partenaire. Ces quatre points ne le sont pas, parce qu'inventer un format ici serait pire que de ne rien faire :
+
+1. **structure JSON exacte** des requêtes de type certificats / utilisateur / transaction / document, et les en-têtes attendus;
+2. **codes de retour** du MEV-WEB et leur signification (lesquels signifient « à retransmettre en lot » plutôt que « rejeté »);
+3. **algorithme et encodage exacts de la signature numérique** (les indices pointent vers ECDSA, à confirmer) et le format du CSR d'enrôlement;
+4. **contenu exact du QR** au-delà du fait qu'il pointe vers `qr.mev-web.ca`.
+
+Quand ces quatre points seront connus, le travail restant se limite à écrire `RevenuQuebecTransport` derrière `mev-gateway` : le POS, la file de retransmission, le journal, les documents et les mentions n'auront pas à changer.
 
 ## Passage en production
 

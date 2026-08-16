@@ -22,4 +22,30 @@ assert.equal(normalizeMevStatus({status:'retryable',retryable:true}),'retryable'
 assert.equal(normalizeMevStatus({status:'rejected',httpStatus:422}),'rejected');
 assert.equal(normalizeMevStatus({status:'unknown',httpStatus:503}),'retryable');
 
-console.log('OK - taxes, split, pourboire terminal et statuts MEV');
+// Keep in sync with SRM_NAME_RE / srmNameError in app-v2.js.
+const SRM_NAME_RE=/^[a-zA-Z0-9@:!#$%&'()*+,\-.=?_|~/\\ ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÑÒÓÔÕÖØÙÚÛÜÝàáâãäåæçèéêëìíîïðñòóôõöøùúûüýÿ]+$/;
+function srmNameError(name){
+  const v=String(name??'');
+  if(v.length<2||v.length>128)return 'length';
+  if(v!==v.trim())return 'whitespace';
+  if(!SRM_NAME_RE.test(v))return 'charset';
+  return null;
+}
+
+assert.equal(srmNameError("Jus d'orange"),null);
+assert.equal(srmNameError('Crème brûlée'),null);
+assert.equal(srmNameError('Bacon (1)'),null);
+assert.equal(srmNameError('Jus d’orange'),'charset');   // curly apostrophe
+assert.equal(srmNameError('Bœuf Wellington'),'charset'); // ligature oe
+assert.equal(srmNameError('Bacon [1]'),'charset');       // square brackets
+assert.equal(srmNameError('Cheese 🧀'),'charset');        // emoji
+assert.equal(srmNameError('S'),'length');
+assert.equal(srmNameError('Cobb Salad '),'whitespace');
+
+// Addition wording: first print is original, later prints are revisions.
+function additionHeading(printed){return printed?['FACTURE RÉVISÉE',`Remplace ${printed} facture${printed>1?'s':''}`]:['FACTURE ORIGINALE']}
+assert.deepEqual(additionHeading(0),['FACTURE ORIGINALE']);
+assert.deepEqual(additionHeading(1),['FACTURE RÉVISÉE','Remplace 1 facture']);
+assert.deepEqual(additionHeading(2),['FACTURE RÉVISÉE','Remplace 2 factures']);
+
+console.log('OK - taxes, split, pourboire terminal, statuts MEV, noms SRM et mentions addition');

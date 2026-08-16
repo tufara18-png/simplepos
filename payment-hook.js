@@ -56,6 +56,9 @@ function buildTicket(company){
 }
 
 async function printCurrentTicket(){
+  // app-v2 owns the FACTURE ORIGINALE / FACTURE REVISEE counter, so prefer its
+  // implementation and only fall back to the DOM-scraped ticket if it is absent.
+  if(typeof window.SimplePOSPrintAddition==='function'){await window.SimplePOSPrintAddition();return}
   const printer=await getReceiptPrinter();
   if(!printer?.ip_address)throw new Error('Configure l’imprimante reçu dans Réglages');
   const company=await getCompanyInfo();
