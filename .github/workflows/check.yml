@@ -13,5 +13,8 @@ jobs:
         with:
           node-version: 22
       - run: node --check app-v2.js
+      - run: node --check payment-hook.js
+      - run: node --check floorplan.js
+      - run: node --check mev-runtime.js
       - run: node --check server.mjs
       - run: node tests.mjs
