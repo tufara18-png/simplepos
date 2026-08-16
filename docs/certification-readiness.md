@@ -29,13 +29,17 @@
 - contrôle d'intégrité des lignes de facture en base : `line_total` doit égaler quantité × prix unitaire, et le prix unitaire facturé doit correspondre à celui de l'article réellement commandé;
 - validation des noms d'articles contre l'alphabet accepté par le MEV-WEB (2–128 caractères, pas d'apostrophe courbe, de ligature œ, de crochets ni d'emoji), couverte par des tests unitaires.
 
+- **montants calculés par le serveur** : `finalize_invoice()` est le seul moyen de créer une vente. Elle dérive sous-total, TPS, TVQ et total de `order_items` et des taux configurés, et refuse un encaissement supérieur au solde réel de la commande. Les droits `INSERT` directs sur `invoices`, `invoice_items` et `payments` ont été retirés aux rôles clients, donc le montant enregistré ne peut plus être dicté par le poste;
+- **note de crédit** (`create_credit_note()`) : facture négative référençant l'originale via `replaces_invoice_id`, une seule par facture, impossible sur une note de crédit;
+- **annulation de commande** (`void_order()`) : annule les articles impayés restants, journalise le motif et la liste des articles dans `fiscal_events`, imprime un reçu « COMMANDE ANNULÉE ».
+
 ## Limites connues restantes
 
-**Sous-total des paiements par montant (division).** Le contrôle d'intégrité ci-dessus couvre le chemin normal (paiement d'articles sélectionnés, qui insère des `invoice_items`). Le chemin « division par montant » n'insère aucune ligne de facture, donc rien n'y valide le sous-total côté serveur. Fermer ça demanderait une RPC `finalize_invoice` unique qui recalcule tout depuis `order_items`, ce qui touche la logique de paiement partagé et n'a pas été fait sans tests d'intégration réels contre le projet Supabase de production.
+**Sous-déclaration par paiement partiel.** Un encaissement peut être inférieur au solde, c'est un paiement partiel légitime. La commande reste alors ouverte avec son solde impayé, elle ne disparaît pas. Pour l'escamoter il faut ensuite annuler le reste, ce qui écrit une entrée `order_voided` dans `fiscal_events` avec le motif et les articles. C'est donc traçable plutôt que bloqué, ce qui est le compromis normal : un vrai départ sans paiement doit rester possible.
 
 **Noms des comptes employés.** La validation d'alphabet est appliquée aux articles du menu, pas encore aux noms d'utilisateurs (SimplePOS n'a pas d'écran de gestion du personnel pour l'instant).
 
-**Annulation de commande complète.** L'annulation d'un article est journalisée, mais il n'existe pas encore de flux « vider la commande » avec reçu d'annulation dédié.
+**Remboursement partiel.** `create_credit_note()` rembourse la facture au complet. Un remboursement partiel (un seul plat sur une facture de quatre) demanderait de choisir les lignes à créditer.
 
 ## Ce que le SW-76 (guide public) exige concrètement
 
@@ -45,7 +49,7 @@ Le SW-76 (*Renseignements généraux sur l'adaptation des SEV*, version 2025-06)
 - numéro de transaction unique par jour civil (notre numérotation par restaurant, jamais réutilisée, satisfait déjà cette exigence);
 - toute transaction qui en modifie une autre (note de crédit, correction, reçu de fermeture après addition) doit inclure une référence à la transaction d'origine : colonne `invoices.replaces_invoice_id` en place, reste à la remplir quand les notes de crédit existeront;
 - signature numérique unique par requête, bloqué sur les certificats Revenu Québec (déjà su);
-- documents obligatoires : reçu de fermeture, note de crédit, reproduction. Facultatifs : soumission, estimation, addition. Le **duplicata** et le **rapport de l'utilisateur** sont maintenant produits; la **note de crédit** (remboursement) reste à faire;
+- documents obligatoires : reçu de fermeture, note de crédit, reproduction. Facultatifs : soumission, estimation, addition. Le **duplicata**, le **rapport de l'utilisateur** et la **note de crédit** sont maintenant produits; reste la **reproduction** destinée à la clientèle;
 - conservation 6 ans incluant toutes les modifications/annulations, pas seulement l'état final, c'est exactement ce que verrouille la chaîne fiscale en ajout seul;
 - journalisation des modifications post-facture, des messages d'erreur MEV-WEB avec leur code de retour, et de l'activation/désactivation du mode hors ligne : couverte par `fiscal_events`.
 
@@ -54,7 +58,7 @@ Le SW-76 (*Renseignements généraux sur l'adaptation des SEV*, version 2025-06)
 Le SW-73 étant verrouillé, ces détails viennent de fournisseurs POS déjà certifiés WEB-SRM qui documentent publiquement leur implémentation (Lightspeed Restaurant K-Series en premier lieu). À prendre comme un signal fort, pas une garantie, puisque ce n'est pas Revenu Québec qui les publie.
 
 - **Mode de paiement « Parti sans payer »** exigé de tout SEV : implémenté.
-- **Flux d'annulation de commande obligatoire** : le SEV doit permettre de vider une commande et imprimer un reçu documentant l'annulation avec la liste des articles annulés. On a l'annulation d'un article (journalisée), pas encore celle d'une commande complète avec reçu dédié.
+- **Flux d'annulation de commande obligatoire** : implémenté (`void_order()` plus reçu « COMMANDE ANNULÉE » listant les articles annulés).
 - **Vocabulaire confirmé** sur les documents : addition non modifiée = « Facture originale », modifiée après impression = « Facture révisée » avec compteur (« Remplace N factures »), reçu de fermeture = « Paiement reçu », copie interne = « *** COPIE DU COMMERÇANT *** » / « NE PAS REMETTRE AU CLIENT », document produit hors ligne = « Problème de communication ». Tous appliqués. Reste « Reproduction » pour la réimpression destinée à la clientèle (distincte du duplicata interne).
 - **Règles de validation des noms** : appliquées aux articles du menu, couvertes par tests unitaires. Pas encore aux comptes employés (pas d'écran de gestion du personnel).
 - **Articles à 0 $ obligatoirement visibles** sur le reçu client : rien ne les filtre, donc déjà conforme.

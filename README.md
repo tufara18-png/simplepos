@@ -26,7 +26,9 @@ Fonctions actives :
 - coordonnées de l'entreprise (nom légal, adresse, téléphone, numéros TPS/TVQ) configurables dans Réglages par le ou la propriétaire du compte, reprises sur l'addition et le reçu de fermeture;
 - mode de paiement **Parti sans payer**, duplicata interne depuis l'historique, rapport de l'utilisateur (sommaire annuel des ventes) imprimable depuis Réglages;
 - gestion par place à table (pivots) : articles assignables à une place, addition et sélection de paiement par place;
-- **mode démo** (Réglages) : simule l'impression à l'écran pour tester tout le flux sans imprimante physique. À ne jamais activer pendant un vrai service.
+- **mode démo** (Réglages) : simule l'impression à l'écran pour tester tout le flux sans imprimante physique. À ne jamais activer pendant un vrai service;
+- **montants de vente calculés côté serveur** : `finalize_invoice()` recalcule sous-total, taxes et total depuis la commande réelle; le POS ne peut plus dicter le montant enregistré;
+- **note de crédit** (remboursement depuis l'historique) et **annulation de commande** avec reçu.
 
 ## Démarrer
 
