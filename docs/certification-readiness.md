@@ -49,6 +49,20 @@ Le SW-73 étant verrouillé, ces détails viennent de fournisseurs POS déjà ce
 - **Articles à 0 $ obligatoirement visibles** sur le reçu client, impossible de masquer un item gratuit/comp.
 - Pénalités en cas de non-conformité : jusqu'à 25 000 $ d'amende, combinable avec jusqu'à 6 mois de prison dans certains cas.
 
+## Observations d'un SEV concurrent déjà certifié (à confirmer, pas une source officielle)
+
+Ces points viennent de chaînes de caractères trouvées dans le binaire d'un SEV concurrent déjà certifié WEB-SRM (Metribook POS, fichier .ipa fourni par l'utilisateur), pas d'une documentation officielle. À traiter comme des indices à revérifier via le SW-73 une fois partenaire, pas comme une spécification fiable :
+
+- domaines réels observés en production : `api.rq-fo.ca`, `certificats.api.rq-fo.ca/enrolement` (enrôlement du certificat), `qr.mev-web.ca` (base du lien contenu dans le QR);
+- environnement de confirmation/certification identifié par le préfixe `cnfr.` sur les mêmes domaines (`cnfr.api.rq-fo.ca`, `certificats.cnfr.api.rq-fo.ca/enrolement`, `cnfr.qr.mev-web.ca`);
+- le certificat doit être de type **ECDSA** (chaîne « Vous devez utiliser un certificat ECDSA » trouvée dans le binaire);
+- ce concepteur dédie des écrans distincts à : la configuration établissement/code d'autorisation, la demande et la gestion du certificat, la gestion des comptes utilisateurs MEV, l'affichage des messages d'erreur, le rapport de l'utilisateur (« RUT » en interne chez eux), et même un écran de suivi des cas d'essai de certification un par un;
+- types de documents observés au-delà de ceux confirmés par le SW-76 : facture, **contrat**, estimation, soumission — « contrat » n'apparaît pas dans le SW-76 public, à vérifier si ça s'applique à la restauration ou si c'est spécifique au transport rémunéré de personnes (l'autre secteur couvert par le même concepteur).
+
+## Mode démo
+
+Réglages → Mode démo : simule l'impression à l'écran (le contenu du reçu s'affiche dans une fenêtre au lieu d'être envoyé à une imprimante réseau) pour permettre de dérouler tout le flux (commande → addition → paiement → MEV simulé → reçu → parti sans payer → duplicata → rapport de l'utilisateur) sans aucun matériel physique. Purement un interrupteur d'affichage côté client, `app_settings.demo_mode`, aucune table ni politique RLS fiscale touchée. À ne jamais activer pendant un vrai service : une bannière reste affichée tant que le mode est actif pour éviter toute confusion.
+
 ## Dépendances officielles encore nécessaires
 
 Ces éléments ne doivent pas être inventés dans le code. Ils seront branchés dans `mev-gateway` lorsque Revenu Québec les fournira :
@@ -59,7 +73,7 @@ Ces éléments ne doivent pas être inventés dans le code. Ils seront branchés
 4. paramètres exacts du protocole MEV-WEB;
 5. formats officiels des requêtes/réponses et documents fiscaux;
 6. format officiel du QR;
-7. règles exactes de signature, numérotation, corrections, annulations, notes de crédit et retransmission;
+7. règles exactes de signature (probablement ECDSA, voir observations ci-dessus, à confirmer), numérotation, corrections, annulations, notes de crédit et retransmission;
 8. environnement de certification;
 9. code d'autorisation et certificat numérique du serveur distant lorsque requis;
 10. exécution et réussite des cas d'essai puis démonstration à Revenu Québec.

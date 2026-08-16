@@ -23,7 +23,10 @@ Fonctions actives :
 - bannière d'alerte si une transaction MEV ou un reçu attend une action;
 - RLS par restaurant avec helper de membership dans un schéma privé;
 - chaîne fiscale en ajout seul (aucune modification/suppression possible par le staff une fois une facture, un paiement ou une tentative MEV écrits) avec numérotation séquentielle des factures par restaurant;
-- coordonnées de l'entreprise (nom légal, adresse, téléphone, numéros TPS/TVQ) configurables dans Réglages par le ou la propriétaire du compte, reprises sur l'addition et le reçu de fermeture.
+- coordonnées de l'entreprise (nom légal, adresse, téléphone, numéros TPS/TVQ) configurables dans Réglages par le ou la propriétaire du compte, reprises sur l'addition et le reçu de fermeture;
+- mode de paiement **Parti sans payer**, duplicata interne depuis l'historique, rapport de l'utilisateur (sommaire annuel des ventes) imprimable depuis Réglages;
+- gestion par place à table (pivots) : articles assignables à une place, addition et sélection de paiement par place;
+- **mode démo** (Réglages) : simule l'impression à l'écran pour tester tout le flux sans imprimante physique. À ne jamais activer pendant un vrai service.
 
 ## Démarrer
 
@@ -111,9 +114,16 @@ Le mode production reste verrouillé. Pour rendre MEV réellement fiscal, il fau
 ```bash
 npm test
 node --check app-v2.js
+node --check local-first.js
+node --check local-cache-fallback.js
+node --check bridge-ui.js
+node --check business-suite.js
+node --check fixed-expenses.js
 node --check payment-hook.js
-node --check floorplan.js
 node --check mev-runtime.js
+node --check ui-shell.js
+node --check pivots.js
+node --check demo-mode.js
 node --check server.mjs
 ```
 
