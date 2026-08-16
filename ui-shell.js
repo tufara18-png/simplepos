@@ -7,4 +7,6 @@ function wireManagement(){$$('[data-management-scroll]').forEach(b=>b.addEventLi
 function wireNavigation(){document.addEventListener('click',e=>{if(e.target.closest('[data-nav]'))setTimeout(syncArea,0)});const observer=new MutationObserver(syncArea);$$('.screen').forEach(s=>observer.observe(s,{attributes:true,attributeFilter:['class']}));syncArea()}
 function wireClock(){const el=$('#clock');if(!el)return;const tick=()=>{const d=new Date();el.textContent=d.toLocaleString('fr-CA',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})};tick();setInterval(tick,30000)}
 function addSectionFallback(){const host=$('#sectionPills');if(!host||host.children.length)return;host.innerHTML='<button class="section-pill active">Toutes</button>'}
+function blockKitchenSentFallback(){const original=window.confirm.bind(window);window.confirm=message=>{if(/Marquer envoyé quand même/i.test(String(message))){const t=$('#toast');if(t){t.textContent='Impression cuisine échouée — les articles restent à envoyer.';t.dataset.type='error';t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800)}return false}return original(message)}}
+blockKitchenSentFallback();
 window.addEventListener('DOMContentLoaded',()=>{wireNavigation();wirePaymentPanels();wireManagement();wireClock();addSectionFallback()});
