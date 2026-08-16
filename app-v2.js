@@ -103,4 +103,6 @@ window.addEventListener('online',()=>{if(restaurant)logFiscalEvent('offline_mode
 // payment-hook.js prints the pre-payment addition too; let it reuse this one so the
 // FACTURE ORIGINALE / REVISEE counter stays in one place.
 window.SimplePOSPrintAddition=()=>printAddition();
+// pivots.js splits a shared item server-side; reload so the ticket reflects it.
+window.addEventListener('simplepos-reload',()=>{if(restaurant)loadAll(true).then(renderCurrent).catch(()=>{})});
 setInterval(()=>$('#clock').textContent=new Date().toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'}),1000);if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});if(session?.access_token)boot();
