@@ -262,6 +262,8 @@ async function receiptText(receipt) {
   const payload = await invoicePayload(receipt.invoice_id);
   const bizRows = await rest(`restaurants?id=eq.${receipt.restaurant_id}&select=name,legal_name,address,city,postal_code,phone,gst_number,qst_number&limit=1`);
   const biz = bizRows?.[0] || {};
+  const payRows = await rest(`payments?invoice_id=eq.${receipt.invoice_id}&select=method&limit=1`);
+  const leftWithoutPaying = payRows?.[0]?.method === 'left_without_paying';
   const addr = [biz.address, [biz.city, biz.postal_code].filter(Boolean).join(' ')].filter(Boolean).join(', ');
   const lines = payload.items.map(i => `${i.quantity} x ${i.name}  ${money(i.line_total)}`);
   return [
@@ -269,6 +271,7 @@ async function receiptText(receipt) {
     biz.phone || null,
     addr || null,
     'PAIEMENT REÇU',
+    leftWithoutPaying ? 'PARTI SANS PAYER' : null,
     '',
     ...lines,
     '',
