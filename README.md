@@ -1,26 +1,27 @@
 # SimplePOS
 
-PWA restaurant minimale : tables → commande → cuisine → paiement → facture.
+PWA restaurant : tables → commande → cuisine → addition → paiement → MEV → reçu de fermeture.
 
 ## État actuel
 
-La version `main` est branchée sur le projet Supabase **SimplePOS** (`ca-central-1`). Les données ne vivent plus seulement dans le navigateur.
+La branche `main` est connectée au projet Supabase **SimplePOS** (`ca-central-1`).
 
-Fonctions :
-- authentification Supabase par courriel/mot de passe;
-- création automatique du premier restaurant, de 8 tables et des pourboires 15/18/20 %;
-- tables et commandes persistées en PostgreSQL;
-- menu administrable dans Réglages (nom, prix, catégorie, station cuisine);
+Fonctions actives :
+- authentification Supabase;
+- restaurant, sections et tables persistés;
+- plan de salle simple par sections;
+- menu administrable (nom, prix, catégorie, station);
 - articles NEW/SENT et tickets cuisine;
-- IP imprimante cuisine + reçu enregistrées par restaurant;
-- impression ESC/POS TCP sur port 9100 via `server.mjs`;
-- sélection d'articles pour payer;
-- division par 2/3/4/X;
-- pourboire en % ou montant, configurable avant/après taxes;
-- factures, paiements et historique persistés;
-- journal `mev_attempts`;
-- Edge Function `mev-simulator` produisant un cycle fiscal réaliste mais **non certifié**;
-- RLS activé pour isoler les données par restaurant.
+- imprimantes réseau ESC/POS TCP port 9100 via `server.mjs`;
+- paiement externe par carte : saisie du total final du terminal et calcul du pourboire;
+- comptant avec montant reçu, pourboire et monnaie;
+- sélection d'articles et division 2/3/4/X;
+- impression de l'**addition avant paiement**; si elle échoue, l'écran de paiement ne s'ouvre pas;
+- factures, paiements et historique dans Supabase;
+- pipeline MEV simulé avec appareil, transactions, tentatives, statuts, retry et reçus;
+- impression automatique du **reçu de fermeture** après acceptation MEV simulée; les reçus non imprimés restent dans une file et sont réessayés;
+- bannière d'alerte si une transaction MEV ou un reçu attend une action;
+- RLS par restaurant avec helper de membership dans un schéma privé.
 
 ## Démarrer
 
@@ -30,11 +31,11 @@ npm start
 
 Puis ouvrir `http://localhost:8787`.
 
-Le premier utilisateur peut créer son compte depuis l'écran de connexion. Si la confirmation par courriel est activée dans Supabase Auth, confirmer le courriel avant la première connexion.
+Le serveur Node sert la PWA et agit comme bridge d'impression local. Une PWA Safari pure ne peut pas ouvrir directement un socket TCP vers une imprimante ESC/POS.
 
 ## Imprimantes
 
-Dans Réglages, entrer seulement les IP LAN :
+Dans **Réglages → Imprimantes réseau** :
 
 ```text
 Cuisine : 192.168.1.50
@@ -42,30 +43,80 @@ Reçu    : 192.168.1.51
 Port    : 9100
 ```
 
-Le navigateur ne peut pas ouvrir un socket TCP brut vers une imprimante. `server.mjs` sert donc de bridge local et envoie les octets ESC/POS sur le réseau du restaurant.
+Le bouton **Payer** imprime d'abord l'addition sur l'imprimante reçu. L'échec d'impression bloque le passage au paiement.
+
+Après un paiement accepté par le pipeline MEV, `mev-runtime.js` imprime automatiquement le reçu de fermeture. Un échec d'impression ne supprime jamais le reçu : `mev_receipts.printed_at` reste vide et le runtime réessaie.
+
+## Paiement externe / pourboire
+
+Carte :
+
+```text
+Montant facture : 57,49 $
+Total terminal  : 67,84 $
+Pourboire       : 10,35 $
+```
+
+Le terminal reste indépendant du POS. Le client choisit son pourboire sur le terminal; SimplePOS enregistre séparément le montant de la facture, le total terminal et le pourboire.
 
 ## MEV-WEB
 
-Le flux de données est déjà structuré comme la future intégration :
+Architecture actuelle :
 
 ```text
-paiement
-→ invoice pending_mev
-→ appel service MEV
-→ accepted / failed
-→ transaction_id + réponse + payload QR
-→ mev_attempts
-→ reçu
+invoice
+  ↓
+MevEnvelopeFactory
+  ↓
+MevController
+  ↓
+SimulatorTransport
+  ↓
+mev_attempts
+  ↓ trigger DB
+mev_transactions
+  ↓
+mev_receipts
+  ↓
+impression / retry
 ```
 
-Aujourd'hui, le service est `supabase/functions/mev-simulator`. Il est explicitement marqué `SIMULATOR` et `certified: false`. Le mode `live` reste verrouillé jusqu'à l'obtention des spécifications, certificats et paramètres officiels de Revenu Québec.
+Tables principales :
+- `mev_devices`
+- `mev_transactions`
+- `mev_attempts`
+- `mev_receipts`
+
+États gérés : `pending`, `sending`, `accepted`, `retryable`, `rejected`, `failed`.
+
+Le simulateur supporte `accepted`, `rejected`, `retryable` et `timeout`. Le QR généré contient explicitement `SIMULATED-NOT-FISCAL` et ne prétend pas reproduire le format Revenu Québec.
+
+Le mode production reste verrouillé. Pour rendre MEV réellement fiscal, il faudra remplacer `SimulatorTransport` par le transport officiel à partir des documents techniques, identifiants et certificats fournis par Revenu Québec. Aucun format privé ou certificat n'est inventé dans le dépôt.
+
+## Runtime MEV
+
+`mev-runtime.js` :
+- récupère les factures orphelines après une panne réseau;
+- retransmet les transactions `pending/retryable`;
+- applique un délai avant retry;
+- limite le nombre de tentatives;
+- garde les erreurs et réponses;
+- imprime les reçus acceptés non encore imprimés;
+- affiche l'état MEV dans Réglages et une alerte visible lorsqu'une intervention est nécessaire.
 
 ## Tests
 
 ```bash
 npm test
-node --check app.js
+node --check app-v2.js
+node --check payment-hook.js
+node --check floorplan.js
+node --check mev-runtime.js
 node --check server.mjs
 ```
 
-Un workflow GitHub Actions `.github/workflows/check.yml` exécute ces contrôles sur `main`.
+GitHub Actions exécute les mêmes vérifications sur `main`.
+
+## Limite réglementaire
+
+SimplePOS n'est **pas encore un SEV certifié**. Le simulateur et ses reçus servent à valider le workflow applicatif. La certification réelle dépend des spécifications privées et de l'environnement de certification MEV-WEB fournis par Revenu Québec.
