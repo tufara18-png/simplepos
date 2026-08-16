@@ -17,6 +17,7 @@ jobs:
       - run: node --check local-cache-fallback.js
       - run: node --check bridge-ui.js
       - run: node --check business-suite.js
+      - run: node --check break-even.js
       - run: node --check payment-hook.js
       - run: node --check floorplan.js
       - run: node --check mev-runtime.js
