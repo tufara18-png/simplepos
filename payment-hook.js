@@ -23,9 +23,28 @@ async function getReceiptPrinter(){
   return rows?.[0]||null;
 }
 
-function buildTicket(){
+async function getCompanyInfo(){
+  const cfg=window.SIMPLEPOS_CONFIG||{};
+  const session=JSON.parse(localStorage.getItem('simplepos-session')||'null');
+  if(!cfg.supabaseUrl||!cfg.supabasePublishableKey||!session?.access_token)return null;
+  const r=await fetch(`${cfg.supabaseUrl}/rest/v1/restaurants?select=name,legal_name,address,city,postal_code,phone,gst_number,qst_number&order=created_at.asc&limit=1`,{
+    headers:{apikey:cfg.supabasePublishableKey,Authorization:`Bearer ${session.access_token}`}
+  });
+  if(!r.ok)return null;
+  const rows=await r.json();
+  return rows?.[0]||null;
+}
+
+function companyHeaderLines(biz){
+  if(!biz)return[];
+  const addr=[biz.address,[biz.city,biz.postal_code].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  return[biz.legal_name||biz.name,biz.phone,addr,biz.gst_number?`TPS ${biz.gst_number}`:null,biz.qst_number?`TVQ ${biz.qst_number}`:null].filter(Boolean);
+}
+
+function buildTicket(company){
   const restaurant=moneyText($('#restaurantName')?.textContent)||'Restaurant';
   const table=moneyText($('#orderTableLabel')?.textContent)||'Table';
+  const header=companyHeaderLines(company);
   const rows=[...document.querySelectorAll('#ticketList .ticket-row')].map(row=>{
     const name=moneyText(row.querySelector('strong')?.textContent);
     const spans=[...row.querySelectorAll('span')];
@@ -33,16 +52,17 @@ function buildTicket(){
     return name?`${name}${price?`  ${price}`:''}`:'';
   }).filter(Boolean);
   const totals=[...document.querySelectorAll('#ticketTotals .total-line')].map(row=>moneyText(row.textContent)).filter(Boolean);
-  return [`ADDITION`,restaurant,table,'',...rows,'',...totals,''].join('\n');
+  return [`FACTURE ORIGINALE`,...(header.length?header:[restaurant]),table,'',...rows,'',...totals,''].join('\n');
 }
 
 async function printCurrentTicket(){
   const printer=await getReceiptPrinter();
   if(!printer?.ip_address)throw new Error('Configure l’imprimante reçu dans Réglages');
+  const company=await getCompanyInfo();
   const r=await fetch('/print',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({ip:printer.ip_address,port:printer.port||9100,text:buildTicket(),cut:true})
+    body:JSON.stringify({ip:printer.ip_address,port:printer.port||9100,text:buildTicket(company),cut:true})
   });
   if(!r.ok)throw new Error('Imprimante reçu inaccessible');
 }

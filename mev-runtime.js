@@ -260,17 +260,21 @@ async function receiptText(receipt) {
   const inv = invRows?.[0];
   if (!inv) throw new Error('Facture du reçu introuvable');
   const payload = await invoicePayload(receipt.invoice_id);
-  const restaurant = ($('#restaurantName')?.textContent || 'Restaurant').trim();
+  const bizRows = await rest(`restaurants?id=eq.${receipt.restaurant_id}&select=name,legal_name,address,city,postal_code,phone,gst_number,qst_number&limit=1`);
+  const biz = bizRows?.[0] || {};
+  const addr = [biz.address, [biz.city, biz.postal_code].filter(Boolean).join(' ')].filter(Boolean).join(', ');
   const lines = payload.items.map(i => `${i.quantity} x ${i.name}  ${money(i.line_total)}`);
   return [
-    'RECU DE FERMETURE',
-    restaurant,
+    biz.legal_name || biz.name || 'Restaurant',
+    biz.phone || null,
+    addr || null,
+    'PAIEMENT REÇU',
     '',
     ...lines,
     '',
     `Sous-total ${money(inv.subtotal)}`,
-    `TPS ${money(inv.gst)}`,
-    `TVQ ${money(inv.qst)}`,
+    biz.gst_number ? `TPS ${biz.gst_number} ${money(inv.gst)}` : `TPS ${money(inv.gst)}`,
+    biz.qst_number ? `TVQ ${biz.qst_number} ${money(inv.qst)}` : `TVQ ${money(inv.qst)}`,
     `Pourboire ${money(inv.tip_amount || 0)}`,
     `TOTAL ${money(inv.payment_total || inv.total)}`,
     '',

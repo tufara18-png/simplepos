@@ -22,7 +22,8 @@ Fonctions actives :
 - impression automatique du **reçu de fermeture** après acceptation MEV simulée; les reçus non imprimés restent dans une file et sont réessayés;
 - bannière d'alerte si une transaction MEV ou un reçu attend une action;
 - RLS par restaurant avec helper de membership dans un schéma privé;
-- chaîne fiscale en ajout seul (aucune modification/suppression possible par le staff une fois une facture, un paiement ou une tentative MEV écrits) avec numérotation séquentielle des factures par restaurant.
+- chaîne fiscale en ajout seul (aucune modification/suppression possible par le staff une fois une facture, un paiement ou une tentative MEV écrits) avec numérotation séquentielle des factures par restaurant;
+- coordonnées de l'entreprise (nom légal, adresse, téléphone, numéros TPS/TVQ) configurables dans Réglages par le ou la propriétaire du compte, reprises sur l'addition et le reçu de fermeture.
 
 ## Démarrer
 
