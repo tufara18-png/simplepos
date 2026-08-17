@@ -124,9 +124,16 @@ async function confirmShare(){
 async function assignSeat(itemId){const item=seatCache.get(itemId);if(!item)return;const max=Math.max(guestCount(),maxKnownSeat());const raw=prompt(`Attribuer ${item.name} à quelle place?`,String(item.seat_number||1));if(raw===null)return;const seat=Number(raw);if(!Number.isInteger(seat)||seat<1||seat>Math.max(99,max)){toast('Numéro de place invalide','error');return}await rest(`order_items?id=eq.${itemId}`,{method:'PATCH',body:{seat_number:seat}});item.seat_number=seat;currentSeat=seat;await refreshOrderPivots();toast(`Article déplacé à la place ${seat}`)}
 
 function separatorFor(seat,count){const sep=document.createElement('div');sep.className='pivot-separator';sep.dataset.seat=String(seat);sep.innerHTML=`<div><strong>Place ${seat}</strong><span>${count} article${count>1?'s':''}</span></div><button class="pivot-print" type="button">Imprimer l’addition</button>`;sep.querySelector('.pivot-print').onclick=()=>printSeatAddition(seat).catch(e=>toast(e.message,'error'));return sep}
-async function refreshOrderPivots(){if(rendering)return;const host=$('#ticketList');if(!host||!$('#orderScreen')?.classList.contains('active'))return;await loadSeatSetting();if(!seatEnabled){teardownSeatUi();return}const rows=[...host.querySelectorAll('.ticket-row')];if(!rows.length){renderSeatBar();return}rendering=true;try{
+async function refreshOrderPivots(){if(rendering)return;const host=$('#ticketList');if(!host||!$('#orderScreen')?.classList.contains('active'))return;await loadSeatSetting();if(!seatEnabled){teardownSeatUi();return}let rows=[...host.querySelectorAll(".ticket-row")];if(!rows.length){renderSeatBar();return}rendering=true;try{
   const ids=rows.map(r=>r.querySelector('[data-remove]')?.dataset.remove).filter(Boolean);await loadItems(ids);
-  rows.forEach(r=>r.querySelector('.pivot-row-seat')?.remove());
+  // app-v2 rebuilds #ticketList on its own poll. If that happened while we were
+  // awaiting, the rows captured above are detached and re-appending them would
+  // duplicate the ticket, so work from whatever is actually in the DOM now.
+  rows=[...host.querySelectorAll('.ticket-row')];
+  if(!rows.length)return;
+  // Every badge, not just the first: this runs on each refresh and they would
+  // otherwise pile up on the row.
+  rows.forEach(r=>r.querySelectorAll('.pivot-row-seat, .pivot-row-share').forEach(x=>x.remove()));
   host.querySelectorAll('.pivot-separator').forEach(x=>x.remove());
   const groups=new Map();
   rows.forEach(row=>{const id=row.querySelector('[data-remove]')?.dataset.remove,item=seatCache.get(id),seat=Number(item?.seat_number||1);if(!groups.has(seat))groups.set(seat,[]);groups.get(seat).push(row);

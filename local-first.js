@@ -34,7 +34,10 @@ async function routedPrint(input,init={}){const base=bridgeBase();if(!base)retur
 
 window.fetch=async function(input,init={}){const raw=typeof input==='string'?input:input.url;const method=String(init.method||(typeof input!=='string'&&input.method)||'GET').toUpperCase();if(raw==='/print'||raw.endsWith('/print')&&new URL(raw,location.href).origin===location.origin)return routedPrint(input,init);if(!REST_PREFIX||!raw.startsWith(REST_PREFIX))return originalFetch(input,init);
 const table=tableFromUrl(raw);if(method==='GET'){try{const r=await originalFetch(input,init);if(r.ok){const data=await r.clone().json().catch(()=>null);if(data!==null)await cacheSnapshot(raw,data)}return r}catch(e){const cached=await cachedGet(raw);if(cached)return cached;throw e}}
-let body=ensureIds(table,parseJsonBody(init.body));const nextInit={...init,body:body==null?init.body:JSON.stringify(body)};if(!navigator.onLine){await queueMutation({url:raw,method,body,prefer:new Headers(init.headers||{}).get('Prefer')||'return=representation'});await mutateSnapshots(table,raw,method,body);return syntheticMutationResponse(method,body,raw)}
+// Client-side ids exist so an offline INSERT can be reconciled later. Adding one
+// to a PATCH would rewrite the row's primary key: the update either fails on a
+// foreign key or silently re-keys the row and orphans every in-memory reference.
+let body=parseJsonBody(init.body);if(method==='POST')body=ensureIds(table,body);const nextInit={...init,body:body==null?init.body:JSON.stringify(body)};if(!navigator.onLine){await queueMutation({url:raw,method,body,prefer:new Headers(init.headers||{}).get('Prefer')||'return=representation'});await mutateSnapshots(table,raw,method,body);return syntheticMutationResponse(method,body,raw)}
 try{const r=await originalFetch(input,nextInit);if(r.ok){let result=null;try{result=await r.clone().json()}catch{}const effective=method==='POST'&&result?result:body;await mutateSnapshots(table,raw,method,effective);return r}return r}catch(e){await queueMutation({url:raw,method,body,prefer:new Headers(init.headers||{}).get('Prefer')||'return=representation'});await mutateSnapshots(table,raw,method,body);return syntheticMutationResponse(method,body,raw)}};
 
 async function requestPersistentStorage(){try{if(navigator.storage?.persist)await navigator.storage.persist()}catch{}}
