@@ -48,4 +48,33 @@ assert.deepEqual(additionHeading(0),['FACTURE ORIGINALE']);
 assert.deepEqual(additionHeading(1),['FACTURE RÉVISÉE','Remplace 1 facture']);
 assert.deepEqual(additionHeading(2),['FACTURE RÉVISÉE','Remplace 2 factures']);
 
-console.log('OK - taxes, split, pourboire terminal, statuts MEV, noms SRM et mentions addition');
+// Keep in sync with sw76-readiness.js. Kitchen slips are intentionally excluded.
+function inferDocumentType(text=''){
+  const v=String(text).toUpperCase();
+  if(v.includes('CUISINE')&&!v.includes('FACTURE'))return null;
+  if(v.includes('REPRODUCTION DESTINÉE AU CLIENT')||v.includes('REPRODUCTION DESTINEE AU CLIENT'))return'customer_reproduction';
+  if(v.includes('*** COPIE DU COMMERÇANT ***')||v.includes('*** COPIE DU COMMERCANT ***'))return'merchant_duplicate';
+  if(v.includes('NOTE DE CRÉDIT')||v.includes('NOTE DE CREDIT'))return'credit_note';
+  if(v.includes('COMMANDE ANNULÉE')||v.includes('COMMANDE ANNULEE'))return'order_cancellation';
+  if(v.includes("RAPPORT DE L'UTILISATEUR")||v.includes('RAPPORT DE L’UTILISATEUR'))return'user_report';
+  if(v.includes('FACTURE RÉVISÉE')||v.includes('FACTURE REVISEE'))return'addition_revised';
+  if(v.includes('FACTURE ORIGINALE'))return'addition_original';
+  if(v.includes('PAIEMENT REÇU')||v.includes('PAIEMENT RECU')||v.includes('PARTI SANS PAYER'))return'closing_receipt';
+  return null;
+}
+function injectLocalReference(text,reference){if(String(text).includes(reference))return String(text);const note=`RÉFÉRENCE LOCALE ${reference}\nDOCUMENT NON CERTIFIÉ — TRANSPORT MEV OFFICIEL NON CONFIGURÉ`;const lines=String(text||'').split('\n');const heading=lines.findIndex(line=>/FACTURE|PAIEMENT|NOTE DE CR|COPIE DU COMMER|RAPPORT DE L|COMMANDE ANNUL|REPRODUCTION/i.test(line));lines.splice(heading>=0?heading+1:Math.min(1,lines.length),0,note);return lines.join('\n')}
+
+assert.equal(inferDocumentType('CUISINE\nTable 1'),null);
+assert.equal(inferDocumentType('FACTURE ORIGINALE\nTable 1'),'addition_original');
+assert.equal(inferDocumentType('FACTURE RÉVISÉE\nTable 1'),'addition_revised');
+assert.equal(inferDocumentType('PAIEMENT REÇU'),'closing_receipt');
+assert.equal(inferDocumentType('NOTE DE CRÉDIT'),'credit_note');
+assert.equal(inferDocumentType('*** COPIE DU COMMERÇANT ***'),'merchant_duplicate');
+assert.equal(inferDocumentType('REPRODUCTION DESTINÉE AU CLIENT'),'customer_reproduction');
+assert.equal(inferDocumentType("RAPPORT DE L'UTILISATEUR"),'user_report');
+const traced=injectLocalReference('Restaurant\nFACTURE ORIGINALE\nTOTAL 10 $','SP-20260817-ABC123-00001');
+assert.match(traced,/RÉFÉRENCE LOCALE SP-20260817-ABC123-00001/);
+assert.equal((traced.match(/SP-20260817-ABC123-00001/g)||[]).length,1);
+assert.equal(injectLocalReference(traced,'SP-20260817-ABC123-00001'),traced);
+
+console.log('OK - taxes, split, pourboire, statuts MEV, noms SRM, additions et documents SW-76');
