@@ -104,7 +104,7 @@ function renderSeatBar(){
     shareSeats.has(n)?shareSeats.delete(n):shareSeats.add(n);renderSeatBar();
   });
   // Sequential flow: one tap opens the next person, nothing already entered moves.
-  bar.querySelector('[data-next-seat]')?.addEventListener('click',()=>{currentSeat+=1;openedSeats=Math.max(openedSeats,currentSeat);renderSeatBar()});
+  bar.querySelector('[data-next-seat]')?.addEventListener('click',()=>{currentSeat+=1;openedSeats=Math.max(openedSeats,currentSeat);renderSeatBar();refreshOrderPivots().catch(()=>{})});
   bar.querySelector('[data-share-cancel]')?.addEventListener('click',()=>{pendingShare=null;shareSeats.clear();renderSeatBar();refreshOrderPivots()});
   bar.querySelector('[data-share-confirm]')?.addEventListener('click',()=>confirmShare().catch(e=>toast(e.message,'error')));
 }
@@ -123,26 +123,66 @@ async function confirmShare(){
 
 async function assignSeat(itemId){const item=seatCache.get(itemId);if(!item)return;const max=Math.max(guestCount(),maxKnownSeat());const raw=prompt(`Attribuer ${item.name} à quelle place?`,String(item.seat_number||1));if(raw===null)return;const seat=Number(raw);if(!Number.isInteger(seat)||seat<1||seat>Math.max(99,max)){toast('Numéro de place invalide','error');return}await rest(`order_items?id=eq.${itemId}`,{method:'PATCH',body:{seat_number:seat}});item.seat_number=seat;currentSeat=seat;await refreshOrderPivots();toast(`Article déplacé à la place ${seat}`)}
 
-function separatorFor(seat,count){const sep=document.createElement('div');sep.className='pivot-separator';sep.dataset.seat=String(seat);sep.innerHTML=`<div><strong>Place ${seat}</strong><span>${count} article${count>1?'s':''}</span></div><button class="pivot-print" type="button">Imprimer l’addition</button>`;sep.querySelector('.pivot-print').onclick=()=>printSeatAddition(seat).catch(e=>toast(e.message,'error'));return sep}
-async function refreshOrderPivots(){if(rendering)return;const host=$('#ticketList');if(!host||!$('#orderScreen')?.classList.contains('active'))return;await loadSeatSetting();if(!seatEnabled){teardownSeatUi();return}let rows=[...host.querySelectorAll(".ticket-row")];if(!rows.length){renderSeatBar();return}rendering=true;try{
-  const ids=rows.map(r=>r.querySelector('[data-remove]')?.dataset.remove).filter(Boolean);await loadItems(ids);
-  // app-v2 rebuilds #ticketList on its own poll. If that happened while we were
-  // awaiting, the rows captured above are detached and re-appending them would
-  // duplicate the ticket, so work from whatever is actually in the DOM now.
-  rows=[...host.querySelectorAll('.ticket-row')];
-  if(!rows.length)return;
-  // Every badge, not just the first: this runs on each refresh and they would
-  // otherwise pile up on the row.
+function separatorFor(seat,count){const sep=document.createElement('div');sep.className='pivot-separator'+(count?'':' empty');sep.dataset.seat=String(seat);
+  // An empty seat gets no print button: there is nothing to bill yet.
+  sep.innerHTML=`<div><strong>Place ${seat}</strong><span>${count?`${count} article${count>1?'s':''}`:'en attente'}</span></div>${count?'<button class="pivot-print" type="button">Imprimer l’addition</button>':''}`;
+  sep.querySelector('.pivot-print')?.addEventListener('click',()=>printSeatAddition(seat).catch(e=>toast(e.message,'error')));
+  return sep}
+// Decorating is split from loading so the ticket never flickers: we redraw from
+// what we already know first, and only wait on the network for items we have
+// genuinely never seen.
+function decorateTicket(host,rows){
   rows.forEach(r=>r.querySelectorAll('.pivot-row-seat, .pivot-row-share').forEach(x=>x.remove()));
   host.querySelectorAll('.pivot-separator').forEach(x=>x.remove());
-  const groups=new Map();
-  rows.forEach(row=>{const id=row.querySelector('[data-remove]')?.dataset.remove,item=seatCache.get(id),seat=Number(item?.seat_number||1);if(!groups.has(seat))groups.set(seat,[]);groups.get(seat).push(row);
+  // The ticket stays in the order the server entered it. We only slip a separator
+  // in where the client changes, so nothing already on screen moves. A client who
+  // orders again later gets a second heading, counting only that run of dishes.
+  const seatOf=r=>Number(seatCache.get(r.querySelector('[data-remove]')?.dataset.remove)?.seat_number||1);
+  const runLength=new Map();
+  rows.forEach((r,i)=>{if(i===0||seatOf(r)!==seatOf(rows[i-1])){let n=0;for(let j=i;j<rows.length&&seatOf(rows[j])===seatOf(r);j++)n++;runLength.set(i,n)}});
+  let lastSeat=null;
+  rows.forEach((row,i)=>{
+    const id=row.querySelector('[data-remove]')?.dataset.remove,item=seatCache.get(id),seat=Number(item?.seat_number||1);
+    if(seat!==lastSeat){host.insertBefore(separatorFor(seat,runLength.get(i)||1),row);lastSeat=seat}
     const n=shareSize(item);
-    const badge=document.createElement('button');badge.type='button';badge.className='pivot-row-seat';badge.textContent=n?`P${seat} · 1/${n}`:`P${seat}`;badge.title=n?`Part partagée entre ${n} places`:'Changer de place';badge.onclick=e=>{e.stopPropagation();assignSeat(id).catch(err=>toast(err.message,'error'))};row.insertBefore(badge,row.querySelector('[data-remove]'));
+    const badge=document.createElement('button');badge.type='button';badge.className='pivot-row-seat';
+    badge.textContent=n?`P${seat} · 1/${n}`:`P${seat}`;
+    badge.title=n?`Part partagée entre ${n} places`:'Changer de place';
+    badge.onclick=e=>{e.stopPropagation();assignSeat(id).catch(err=>toast(err.message,'error'))};
+    row.insertBefore(badge,row.querySelector('[data-remove]'));
     // Only a whole, unpaid, not-yet-shared item can be split further.
-    if(!n&&item&&Number(item.paid_quantity||0)===0){const sh=document.createElement('button');sh.type='button';sh.className='pivot-row-share';sh.textContent='⇄';sh.title='Partager entre plusieurs places';sh.onclick=e=>{e.stopPropagation();pendingShare=id;shareSeats.clear();shareSeats.add(seat);renderSeatBar();};row.insertBefore(sh,row.querySelector('[data-remove]'))}});
-  const frag=document.createDocumentFragment();[...groups.entries()].sort((a,b)=>a[0]-b[0]).forEach(([seat,list])=>{frag.append(separatorFor(seat,list.length));list.forEach(r=>frag.append(r))});host.append(frag);renderSeatBar();ensurePrintAllButton();
-}finally{rendering=false}}
+    if(!n&&item&&Number(item.paid_quantity||0)===0){
+      const sh=document.createElement('button');sh.type='button';sh.className='pivot-row-share';sh.textContent='⇄';
+      sh.title='Partager entre plusieurs places';
+      sh.onclick=e=>{e.stopPropagation();pendingShare=id;shareSeats.clear();shareSeats.add(seat);renderSeatBar()};
+      row.insertBefore(sh,row.querySelector('[data-remove]'));
+    }
+  });
+  // "Client suivant" has to show something straight away, otherwise the server
+  // taps it and nothing happens until the first dish lands.
+  if(lastSeat!==currentSeat)host.append(separatorFor(currentSeat,0));
+}
+async function refreshOrderPivots(){
+  if(rendering)return;
+  const host=$('#ticketList');
+  if(!host||!$('#orderScreen')?.classList.contains('active'))return;
+  await loadSeatSetting();
+  if(!seatEnabled){teardownSeatUi();return}
+  let rows=[...host.querySelectorAll('.ticket-row')];
+  if(!rows.length){renderSeatBar();return}
+  rendering=true;
+  try{
+    decorateTicket(host,rows);
+    renderSeatBar();ensurePrintAllButton();
+    const missing=rows.map(r=>r.querySelector('[data-remove]')?.dataset.remove).filter(id=>id&&!seatCache.has(id));
+    if(!missing.length)return;
+    await loadItems(missing);
+    // app-v2 may have rebuilt #ticketList while we awaited, so re-read the DOM.
+    rows=[...host.querySelectorAll('.ticket-row')];
+    if(!rows.length)return;
+    decorateTicket(host,rows);
+    renderSeatBar();ensurePrintAllButton();
+  }finally{rendering=false}}
 
 function ensurePayPivotBar(){const items=$('#payItems');if(!items)return null;let bar=$('#payPivotBar');if(!bar){bar=document.createElement('div');bar.id='payPivotBar';bar.className='pay-pivot-bar';items.before(bar)}return bar}
 async function setPaymentSelection(seat){let guard=0;const step=()=>{if(guard++>100)return;const rows=$$('#payItems [data-payitem]');if(!rows.length)return;let target=null;for(const row of rows){const id=row.dataset.payitem,selected=row.classList.contains('selected'),should=seat===null?false:Number(seatCache.get(id)?.seat_number||1)===seat;if(selected!==should){target=row;break}}if(target){target.click();setTimeout(step,0)}};step()}
@@ -248,7 +288,7 @@ function injectStyles(){if($('#pivotStyles'))return;const style=document.createE
 .pivot-split-name{font-weight:750;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pivot-split-seat{background:#f0ecff;color:#4f13ff;border-radius:999px;padding:3px 8px;font-size:11px;font-weight:850}
 .pivot-split-amt{font-weight:750;font-variant-numeric:tabular-nums}
-.pay-pivot-bar{display:flex;gap:8px;align-items:center;overflow:auto;padding:4px 0 14px;margin-bottom:2px}.pivot-label{font-size:12px;font-weight:800;color:#777b85}.pivot-seat,.pivot-pay-choice{border:1px solid #e2e2e7;background:#fff;border-radius:999px;padding:9px 14px;font-weight:750;white-space:nowrap}.pivot-seat.active,.pivot-pay-choice.active{background:#202126;color:#fff;border-color:#202126}.pivot-seat.add-seat{color:#4f13ff}.pivot-separator{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 2px 7px;margin-top:10px;border-top:1px solid #e8e8eb}.pivot-separator:first-child{margin-top:0;border-top:0}.pivot-separator>div{display:flex;align-items:baseline;gap:8px}.pivot-separator span{font-size:11px;color:#777b85}.pivot-print{border:0;background:transparent;color:#4f13ff;font-size:12px;font-weight:800}.pivot-row-seat{border:0;background:#f1edff;color:#4f13ff;border-radius:999px;padding:5px 7px;font-size:10px;font-weight:850}.ticket-row{grid-template-columns:minmax(0,1fr) auto auto auto auto!important}.pay-pivot-bar{margin:6px 0 14px}@media(max-width:820px){.pivot-seat-bar,.pay-pivot-bar{padding-bottom:10px}.pivot-separator{align-items:flex-start}.pivot-print{padding-top:2px}}
+.pay-pivot-bar{display:flex;gap:8px;align-items:center;overflow:auto;padding:4px 0 14px;margin-bottom:2px}.pivot-label{font-size:12px;font-weight:800;color:#777b85}.pivot-seat,.pivot-pay-choice{border:1px solid #e2e2e7;background:#fff;border-radius:999px;padding:9px 14px;font-weight:750;white-space:nowrap}.pivot-seat.active,.pivot-pay-choice.active{background:#202126;color:#fff;border-color:#202126}.pivot-seat.add-seat{color:#4f13ff}.pivot-separator{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 2px 7px;margin-top:10px;border-top:1px solid #e8e8eb}.pivot-separator:first-child{margin-top:0;border-top:0}.pivot-separator.empty strong{color:#777b85}.pivot-separator.empty span{font-style:italic}.pivot-separator>div{display:flex;align-items:baseline;gap:8px}.pivot-separator span{font-size:11px;color:#777b85}.pivot-print{border:0;background:transparent;color:#4f13ff;font-size:12px;font-weight:800}.pivot-row-seat{border:0;background:#f1edff;color:#4f13ff;border-radius:999px;padding:5px 7px;font-size:10px;font-weight:850}.ticket-row{grid-template-columns:minmax(0,1fr) auto auto auto auto!important}.pay-pivot-bar{margin:6px 0 14px}@media(max-width:820px){.pivot-seat-bar,.pay-pivot-bar{padding-bottom:10px}.pivot-separator{align-items:flex-start}.pivot-print{padding-top:2px}}
 `;document.head.append(style)}
 
 function wire(){injectStyles();
