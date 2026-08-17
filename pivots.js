@@ -97,13 +97,22 @@ function renderSeatBar(){
       `<button type="button" class="pivot-pill ${shareSeats.has(n)?'active':''}" data-seat-pick="${n}">Place ${n}</button>`).join('');
     bar.innerHTML=`<div class="pivot-share"><div class="pivot-share-title">Partager « ${esc(seatCache.get(pendingShare)?.name||'')} » entre :</div><div class="pivot-pills">${pills}</div><div class="pivot-share-actions"><button type="button" class="btn primary small" data-share-confirm>Partager (${shareSeats.size})</button><button type="button" class="btn small" data-share-cancel>Annuler</button></div></div>`;
   }else{
-    bar.innerHTML=`<div class="pivot-now"><span class="pivot-chip">Place ${currentSeat}</span><button type="button" class="pivot-link" data-next-seat>Client suivant →</button></div>`;
+    // One pill per client so the server can jump back to anyone, not just forward.
+    const nums=Array.from({length:count},(_,i)=>i+1).map(n=>
+      `<button type="button" class="pivot-num ${n===currentSeat?'active':''}" data-seat-go="${n}">${n}</button>`).join('');
+    bar.innerHTML=`<div class="pivot-now"><div class="pivot-nums"><span class="pivot-nums-label">Place</span>${nums}<button type="button" class="pivot-num add" data-seat-add title="Ajouter un client">+</button></div><button type="button" class="pivot-link" data-next-seat>Client suivant →</button></div>`;
   }
   bar.querySelectorAll('[data-seat-pick]').forEach(b=>b.onclick=()=>{
     const n=Number(b.dataset.seatPick);
     shareSeats.has(n)?shareSeats.delete(n):shareSeats.add(n);renderSeatBar();
   });
   // Sequential flow: one tap opens the next person, nothing already entered moves.
+  bar.querySelectorAll('[data-seat-go]').forEach(b=>b.addEventListener('click',()=>{
+    currentSeat=Number(b.dataset.seatGo);renderSeatBar();refreshOrderPivots().catch(()=>{});
+  }));
+  bar.querySelector('[data-seat-add]')?.addEventListener('click',()=>{
+    openedSeats=seatCount()+1;currentSeat=openedSeats;renderSeatBar();refreshOrderPivots().catch(()=>{});
+  });
   bar.querySelector('[data-next-seat]')?.addEventListener('click',()=>{currentSeat+=1;openedSeats=Math.max(openedSeats,currentSeat);renderSeatBar();refreshOrderPivots().catch(()=>{})});
   bar.querySelector('[data-share-cancel]')?.addEventListener('click',()=>{pendingShare=null;shareSeats.clear();renderSeatBar();refreshOrderPivots()});
   bar.querySelector('[data-share-confirm]')?.addEventListener('click',()=>confirmShare().catch(e=>toast(e.message,'error')));
@@ -272,7 +281,11 @@ function scheduleRefresh(){clearTimeout(refreshTimer);refreshTimer=setTimeout(()
 function injectStyles(){if($('#pivotStyles'))return;const style=document.createElement('style');style.id='pivotStyles';style.textContent=`
 .pivot-seat-bar{display:block;padding:0 0 10px}
 .pivot-now{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.pivot-chip{background:#f0ecff;color:#4f13ff;border-radius:999px;padding:6px 12px;font-size:12px;font-weight:850}
+.pivot-nums{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.pivot-nums-label{font-size:11px;font-weight:800;color:#777b85;margin-right:2px}
+.pivot-num{min-width:28px;height:28px;border:1px solid #e2e2e7;background:#fff;border-radius:8px;font-size:12px;font-weight:850;color:#3f4249;padding:0 6px}
+.pivot-num.active{background:#4f13ff;border-color:#4f13ff;color:#fff}
+.pivot-num.add{color:#4f13ff;border-style:dashed}
 .pivot-link{border:0;background:transparent;color:#4f13ff;font-size:12px;font-weight:800;padding:6px 0;white-space:nowrap}
 .pivot-share{background:var(--soft,#f7f7f8);border-radius:12px;padding:12px}
 .pivot-share-title{font-size:12px;font-weight:800;color:#3f4249;margin-bottom:8px}
