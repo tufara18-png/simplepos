@@ -64,7 +64,7 @@ function inferDocumentType(text=''){
 }
 function injectLocalReference(text,reference){if(String(text).includes(reference))return String(text);const note=`RÉFÉRENCE LOCALE ${reference}\nDOCUMENT NON CERTIFIÉ — TRANSPORT MEV OFFICIEL NON CONFIGURÉ`;const lines=String(text||'').split('\n');const heading=lines.findIndex(line=>/FACTURE|PAIEMENT|NOTE DE CR|COPIE DU COMMER|RAPPORT DE L|COMMANDE ANNUL|REPRODUCTION/i.test(line));lines.splice(heading>=0?heading+1:Math.min(1,lines.length),0,note);return lines.join('\n')}
 
-assert.equal(inferDocumentType('CUISINE\nTable 1'),'null'==='not-null'?1:null);
+assert.equal(inferDocumentType('CUISINE\nTable 1'),null);
 assert.equal(inferDocumentType('FACTURE ORIGINALE\nTable 1'),'addition_original');
 assert.equal(inferDocumentType('FACTURE RÉVISÉE\nTable 1'),'addition_revised');
 assert.equal(inferDocumentType('PAIEMENT REÇU'),'closing_receipt');
