@@ -77,4 +77,16 @@ assert.match(traced,/RÉFÉRENCE LOCALE SP-20260817-ABC123-00001/);
 assert.equal((traced.match(/SP-20260817-ABC123-00001/g)||[]).length,1);
 assert.equal(injectLocalReference(traced,'SP-20260817-ABC123-00001'),traced);
 
-console.log('OK - taxes, split, pourboire, statuts MEV, noms SRM, additions et documents SW-76');
+// PWA capability probe rules. A browser signing test is not an official MEV key.
+const SHA256_HEX=/^[0-9a-f]{64}$/;
+function pwaCapability({standalone,persisted,cryptoVerified,privateExtractable,bridgeReachable}){
+  const localSigningReady=standalone&&persisted&&cryptoVerified&&privateExtractable===false;
+  return{localSigningReady,fullOperationalPath:localSigningReady&&bridgeReachable};
+}
+assert.equal(SHA256_HEX.test('a'.repeat(64)),true);
+assert.equal(SHA256_HEX.test('a'.repeat(63)),false);
+assert.deepEqual(pwaCapability({standalone:true,persisted:true,cryptoVerified:true,privateExtractable:false,bridgeReachable:true}),{localSigningReady:true,fullOperationalPath:true});
+assert.deepEqual(pwaCapability({standalone:true,persisted:true,cryptoVerified:true,privateExtractable:false,bridgeReachable:false}),{localSigningReady:true,fullOperationalPath:false});
+assert.equal(pwaCapability({standalone:false,persisted:true,cryptoVerified:true,privateExtractable:false,bridgeReachable:true}).localSigningReady,false);
+
+console.log('OK - taxes, split, pourboire, statuts MEV, noms SRM, documents SW-76 et diagnostic PWA');

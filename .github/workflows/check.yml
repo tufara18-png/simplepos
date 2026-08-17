@@ -25,5 +25,6 @@ jobs:
       - run: node --check pivot-seat-write-fix.js
       - run: node --check demo-mode.js
       - run: node --check sw76-readiness.js
+      - run: node --check pwa-device-readiness.js
       - run: node --check server.mjs
       - run: node tests.mjs

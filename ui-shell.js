@@ -12,5 +12,8 @@ blockKitchenSentFallback();
 Promise.all([
   import('/pivots.js').then(()=>import('/pivot-seat-write-fix.js')),
   import('/demo-mode.js')
-]).then(()=>import('/sw76-readiness.js')).catch(err=>console.error('SimplePOS extension unavailable',err));
+])
+  .then(()=>import('/sw76-readiness.js'))
+  .then(()=>import('/pwa-device-readiness.js'))
+  .catch(err=>console.error('SimplePOS extension unavailable',err));
 window.addEventListener('DOMContentLoaded',()=>{wireNavigation();wirePaymentPanels();wireManagement();wireClock();addSectionFallback()});
