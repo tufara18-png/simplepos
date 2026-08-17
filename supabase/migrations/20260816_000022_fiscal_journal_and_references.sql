@@ -39,6 +39,9 @@ drop policy if exists "fiscal events select" on public.fiscal_events;
 create policy "fiscal events select" on public.fiscal_events for select to authenticated using (private.is_restaurant_member(restaurant_id));
 drop policy if exists "fiscal events insert" on public.fiscal_events;
 create policy "fiscal events insert" on public.fiscal_events for insert to authenticated with check (private.is_restaurant_member(restaurant_id));
+-- Granted explicitly rather than relying on the project's default privileges,
+-- which are not guaranteed to cover newly created tables.
+grant select, insert on public.fiscal_events to authenticated;
 -- Append-only, same rationale as the rest of the fiscal chain.
 revoke update, delete on public.fiscal_events from authenticated, anon;
 

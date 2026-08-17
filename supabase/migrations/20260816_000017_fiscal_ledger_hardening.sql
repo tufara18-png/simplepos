@@ -12,32 +12,42 @@
 -- 1. Narrow RLS policies: SELECT + INSERT only for the fiscal chain.
 
 drop policy if exists "invoices member access" on public.invoices;
+drop policy if exists "invoices select" on public.invoices;
 create policy "invoices select" on public.invoices for select to authenticated using (private.is_restaurant_member(restaurant_id));
+drop policy if exists "invoices insert" on public.invoices;
 create policy "invoices insert" on public.invoices for insert to authenticated with check (private.is_restaurant_member(restaurant_id));
 revoke update, delete on public.invoices from authenticated, anon;
 
 drop policy if exists "invoice items member access" on public.invoice_items;
+drop policy if exists "invoice items select" on public.invoice_items;
 create policy "invoice items select" on public.invoice_items for select to authenticated using (exists (select 1 from public.invoices i where i.id = invoice_items.invoice_id and private.is_restaurant_member(i.restaurant_id)));
+drop policy if exists "invoice items insert" on public.invoice_items;
 create policy "invoice items insert" on public.invoice_items for insert to authenticated with check (exists (select 1 from public.invoices i where i.id = invoice_items.invoice_id and private.is_restaurant_member(i.restaurant_id)));
 revoke update, delete on public.invoice_items from authenticated, anon;
 
 drop policy if exists "payments member access" on public.payments;
+drop policy if exists "payments select" on public.payments;
 create policy "payments select" on public.payments for select to authenticated using (private.is_restaurant_member(restaurant_id));
+drop policy if exists "payments insert" on public.payments;
 create policy "payments insert" on public.payments for insert to authenticated with check (private.is_restaurant_member(restaurant_id));
 revoke update, delete on public.payments from authenticated, anon;
 
 drop policy if exists "mev attempts member access" on public.mev_attempts;
+drop policy if exists "mev attempts select" on public.mev_attempts;
 create policy "mev attempts select" on public.mev_attempts for select to authenticated using (private.is_restaurant_member(restaurant_id));
+drop policy if exists "mev attempts insert" on public.mev_attempts;
 create policy "mev attempts insert" on public.mev_attempts for insert to authenticated with check (private.is_restaurant_member(restaurant_id));
 revoke update, delete on public.mev_attempts from authenticated, anon;
 
 -- mev_transactions and mev_receipts are only ever written by the mirror_mev_attempt_to_runtime
 -- trigger (SECURITY DEFINER, bypasses RLS) or by the RPCs defined below. The client only reads them.
 drop policy if exists mev_transactions_member_all on public.mev_transactions;
+drop policy if exists "mev transactions select" on public.mev_transactions;
 create policy "mev transactions select" on public.mev_transactions for select to authenticated using (private.is_restaurant_member(restaurant_id));
 revoke insert, update, delete on public.mev_transactions from authenticated, anon;
 
 drop policy if exists mev_receipts_member_all on public.mev_receipts;
+drop policy if exists "mev receipts select" on public.mev_receipts;
 create policy "mev receipts select" on public.mev_receipts for select to authenticated using (private.is_restaurant_member(restaurant_id));
 revoke insert, update, delete on public.mev_receipts from authenticated, anon;
 

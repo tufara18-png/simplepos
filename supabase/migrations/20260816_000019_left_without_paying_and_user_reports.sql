@@ -31,6 +31,9 @@ drop policy if exists "user reports select" on public.user_reports;
 create policy "user reports select" on public.user_reports for select to authenticated using (private.is_restaurant_member(restaurant_id));
 drop policy if exists "user reports insert" on public.user_reports;
 create policy "user reports insert" on public.user_reports for insert to authenticated with check (private.is_restaurant_member(restaurant_id));
+-- Granted explicitly rather than relying on the project's default privileges,
+-- which are not guaranteed to cover newly created tables.
+grant select, insert on public.user_reports to authenticated;
 -- Append-only: no update/delete policy, same rationale as the fiscal ledger hardening.
 revoke update, delete on public.user_reports from authenticated, anon;
 
