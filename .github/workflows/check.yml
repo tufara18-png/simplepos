@@ -22,5 +22,6 @@ jobs:
       - run: node --check mev-runtime.js
       - run: node --check ui-shell.js
       - run: node --check pivots.js
+      - run: node --check demo-mode.js
       - run: node --check server.mjs
       - run: node tests.mjs
