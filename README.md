@@ -25,7 +25,7 @@ Fonctions actives :
 - chaîne fiscale en ajout seul (aucune modification/suppression possible par le staff une fois une facture, un paiement ou une tentative MEV écrits) avec numérotation séquentielle des factures par restaurant;
 - coordonnées de l'entreprise (nom légal, adresse, téléphone, numéros TPS/TVQ) configurables dans Réglages par le ou la propriétaire du compte, reprises sur l'addition et le reçu de fermeture;
 - mode de paiement **Parti sans payer**, duplicata interne depuis l'historique, rapport de l'utilisateur (sommaire annuel des ventes) imprimable depuis Réglages;
-- gestion par place à table (pivots) : **plan des places** dessiné autour de la table (total par personne d'un coup d'œil), articles assignables à une place, addition et sélection de paiement par place;
+- gestion par place à table (pivots), activable ou non dans Réglages : bouton **Client suivant** dans le ticket, séparateurs par place dans la liste, addition par place, impression de toutes les additions d'un coup, sélection de qui paie;
 - **article partagé** : une bouteille partagée entre plusieurs places est fractionnée au cent près (la somme des parts redonne toujours le montant exact), chaque personne paie sa part;
 - **mode démo** (Réglages) : simule l'impression à l'écran pour tester tout le flux sans imprimante physique. À ne jamais activer pendant un vrai service;
 - **montants de vente calculés côté serveur** : `finalize_invoice()` recalcule sous-total, taxes et total depuis la commande réelle; le POS ne peut plus dicter le montant enregistré;
