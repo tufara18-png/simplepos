@@ -10,4 +10,5 @@ function addSectionFallback(){const host=$('#sectionPills');if(!host||host.child
 function blockKitchenSentFallback(){const original=window.confirm.bind(window);window.confirm=message=>{if(/Marquer envoyé quand même/i.test(String(message))){const t=$('#toast');if(t){t.textContent='Impression cuisine échouée — les articles restent à envoyer.';t.dataset.type='error';t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800)}return false}return original(message)}}
 blockKitchenSentFallback();
 import('/pivots.js').catch(err=>console.error('Pivot module unavailable',err));
+import('/demo-mode.js').catch(err=>console.error('Demo mode unavailable',err));
 window.addEventListener('DOMContentLoaded',()=>{wireNavigation();wirePaymentPanels();wireManagement();wireClock();addSectionFallback()});
