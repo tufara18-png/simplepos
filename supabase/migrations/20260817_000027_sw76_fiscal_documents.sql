@@ -77,11 +77,15 @@ grant select on public.fiscal_documents to authenticated;
 revoke insert, update, delete on public.fiscal_documents from public, anon, authenticated;
 
 -- Add the public-guide events we can record now without knowing SW-73.
+-- item_shared comes from migration 25 and must stay in the list: dropping it here
+-- makes this file unreplayable as soon as one item has been shared, because the
+-- new constraint would be violated by rows already in the journal.
 alter table public.fiscal_events drop constraint if exists fiscal_events_event_type_check;
 alter table public.fiscal_events add constraint fiscal_events_event_type_check check (event_type in (
   'item_added_after_invoice',
   'item_removed_after_invoice',
   'item_price_changed_after_invoice',
+  'item_shared',
   'mev_error',
   'offline_mode_on',
   'offline_mode_off',

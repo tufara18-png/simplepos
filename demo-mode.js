@@ -83,7 +83,10 @@ function ensureBanner(){
   return el;
 }
 
-function setBannerVisible(visible){ensureBanner().style.display=visible?'block':'none'}
+// Single source of truth for "nothing here is real", read by the other modules.
+// Without it sw76-readiness would keep writing training documents into the
+// immutable fiscal ledger and burning the day's transaction numbers.
+function setBannerVisible(visible){window.SIMPLEPOS_DEMO=!!visible;ensureBanner().style.display=visible?'block':'none'}
 
 async function currentRestaurantId(){
   if(restaurantId)return restaurantId;
