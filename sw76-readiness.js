@@ -21,8 +21,34 @@ function uuid(){return crypto.randomUUID()}
 function todayKey(){const d=new Date();return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`}
 function deviceId(){let id=localStorage.getItem(DEVICE_KEY);if(!id){id=uuid();localStorage.setItem(DEVICE_KEY,id)}return id}
 function nextLocalReference(){const day=todayKey(),all=safeJson(localStorage.getItem(SEQUENCE_KEY)||'{}',{});const n=Number(all[day]||0)+1;all[day]=n;localStorage.setItem(SEQUENCE_KEY,JSON.stringify(all));const suffix=deviceId().replaceAll('-','').slice(-6).toUpperCase();return`SP-${day}-${suffix}-${String(n).padStart(5,'0')}`}
-function outbox(){return safeJson(localStorage.getItem(OUTBOX_KEY)||'[]',[])}
-function saveOutbox(rows){localStorage.setItem(OUTBOX_KEY,JSON.stringify(rows));updateStatusUi()}
+// A document waiting here has already been printed on paper. localStorage is
+// evictable and capped, so the queue lives in IndexedDB under a persistent
+// storage grant; an in-memory mirror keeps the call sites synchronous.
+const IDB_NAME='simplepos-fiscal-v1',IDB_STORE='outbox';
+let outboxCache=[],outboxReady=false;
+function idb(){return new Promise((resolve,reject)=>{const r=indexedDB.open(IDB_NAME,1);r.onupgradeneeded=()=>{const db=r.result;if(!db.objectStoreNames.contains(IDB_STORE))db.createObjectStore(IDB_STORE,{keyPath:'key'})};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)})}
+async function idbGet(){const db=await idb();return new Promise((resolve,reject)=>{const tx=db.transaction(IDB_STORE,'readonly'),q=tx.objectStore(IDB_STORE).get('queue');q.onsuccess=()=>resolve(q.result?.rows||null);q.onerror=()=>reject(q.error)})}
+async function idbPut(rows){const db=await idb();return new Promise((resolve,reject)=>{const tx=db.transaction(IDB_STORE,'readwrite');tx.objectStore(IDB_STORE).put({key:'queue',rows});tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)})}
+async function initOutbox(){
+  try{await navigator.storage?.persist?.()}catch{}
+  let rows=null;
+  try{rows=await idbGet()}catch{}
+  if(!rows){
+    // One-time migration of anything the previous localStorage queue still holds.
+    rows=safeJson(localStorage.getItem(OUTBOX_KEY)||'[]',[]);
+    try{await idbPut(rows);localStorage.removeItem(OUTBOX_KEY)}catch{}
+  }
+  // A document may have been printed while we were reading; merge instead of
+  // overwriting, or that entry would be lost before it ever reached the ledger.
+  const stored=Array.isArray(rows)?rows:[];
+  const seen=new Set(outboxCache.map(x=>x.id));
+  outboxCache=[...stored.filter(x=>!seen.has(x.id)),...outboxCache];
+  outboxReady=true;
+  void idbPut(outboxCache).catch(()=>{});
+  updateStatusUi();
+}
+function outbox(){return outboxCache}
+function saveOutbox(rows){outboxCache=Array.isArray(rows)?rows:[];void idbPut(outboxCache).catch(()=>{try{localStorage.setItem(OUTBOX_KEY,JSON.stringify(outboxCache))}catch{}});updateStatusUi()}
 
 async function api(path,{method='GET',body,prefer='return=representation'}={}){
   const s=session();if(!API||!s?.access_token)throw new Error('Non connecté');
@@ -63,7 +89,23 @@ function documentPayload({id,reference,type,text,context={}}){return{
   p_content_text:text,
   p_payload:{source:'print_interceptor',device_id:deviceId(),page:location.pathname,created_at:new Date().toISOString(),...context.payload}
 }}
-async function registerDocument(entry){const r=await restaurant();if(!r)throw new Error('Restaurant introuvable');entry.rpc.p_restaurant_id=r.id;return api('rpc/record_fiscal_document',{method:'POST',body:entry.rpc})}
+async function registerDocument(entry){
+  const r=await restaurant();if(!r)throw new Error('Restaurant introuvable');
+  entry.rpc.p_restaurant_id=r.id;
+  const saved=await api('rpc/record_fiscal_document',{method:'POST',body:entry.rpc});
+  const row=Array.isArray(saved)?saved[0]:saved;
+  // The RPC answers an existing row when a reference collides. Two tabs share the
+  // same device counter, so that can happen — and accepting the answer blindly
+  // would drop a document that was really printed. Take a fresh reference and retry.
+  if(row&&row.local_document_id!==entry.rpc.p_local_document_id){
+    entry.rpc.p_local_reference=nextLocalReference();
+    const retried=await api('rpc/record_fiscal_document',{method:'POST',body:entry.rpc});
+    const retriedRow=Array.isArray(retried)?retried[0]:retried;
+    if(retriedRow&&retriedRow.local_document_id!==entry.rpc.p_local_document_id)throw new Error('Référence locale en conflit, document non enregistré');
+    return retriedRow;
+  }
+  return row;
+}
 function enqueue(entry){const rows=outbox();if(!rows.some(x=>x.id===entry.id))rows.push(entry);saveOutbox(rows)}
 async function syncOutbox(){if(syncing||isDemo()||!navigator.onLine||!session()?.access_token)return;syncing=true;try{let rows=outbox();for(const entry of [...rows]){try{await registerDocument(entry);rows=rows.filter(x=>x.id!==entry.id);saveOutbox(rows)}catch(err){entry.attempts=Number(entry.attempts||0)+1;entry.last_error=String(err.message||err).slice(0,400);saveOutbox(rows);break}}}finally{syncing=false;updateStatusUi();loadLedger().catch(()=>{})}}
 
@@ -124,7 +166,7 @@ function injectStyles(){if($('#sw76ReadinessStyles'))return;const style=document
 `;document.head.append(style)}
 function decorate(){decorateHistory();ensureSettingsCards()}
 function scheduleDecorate(){clearTimeout(decorateTimer);decorateTimer=setTimeout(decorate,80)}
-function start(){injectStyles();document.addEventListener('click',e=>{const b=e.target.closest('[data-reproduction]');if(b){e.preventDefault();printCustomerReproduction(b.dataset.reproduction).catch(err=>toast(err.message,'error'))}},true);new MutationObserver(scheduleDecorate).observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});window.addEventListener('online',()=>void syncOutbox());document.addEventListener('visibilitychange',()=>{if(!document.hidden)void syncOutbox()});setInterval(()=>void syncOutbox(),15000);decorate();void syncOutbox()}
+function start(){injectStyles();void initOutbox().then(()=>syncOutbox());document.addEventListener('click',e=>{const b=e.target.closest('[data-reproduction]');if(b){e.preventDefault();printCustomerReproduction(b.dataset.reproduction).catch(err=>toast(err.message,'error'))}},true);new MutationObserver(scheduleDecorate).observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});window.addEventListener('online',()=>void syncOutbox());document.addEventListener('visibilitychange',()=>{if(!document.hidden)void syncOutbox()});setInterval(()=>void syncOutbox(),15000);decorate();void syncOutbox()}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
 
 export{inferDocumentType,injectLocalReference};

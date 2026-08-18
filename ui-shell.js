@@ -10,7 +10,7 @@ function addSectionFallback(){const host=$('#sectionPills');if(!host||host.child
 function blockKitchenSentFallback(){const original=window.confirm.bind(window);window.confirm=message=>{if(/Marquer envoyé quand même/i.test(String(message))){const t=$('#toast');if(t){t.textContent='Impression cuisine échouée — les articles restent à envoyer.';t.dataset.type='error';t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800)}return false}return original(message)}}
 blockKitchenSentFallback();
 Promise.all([
-  import('/pivots.js').then(()=>import('/pivot-seat-write-fix.js')),
+  import('/pivots.js'),
   import('/demo-mode.js')
 ])
   .then(()=>import('/sw76-readiness.js'))

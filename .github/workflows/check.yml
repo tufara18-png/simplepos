@@ -22,7 +22,6 @@ jobs:
       - run: node --check mev-runtime.js
       - run: node --check ui-shell.js
       - run: node --check pivots.js
-      - run: node --check pivot-seat-write-fix.js
       - run: node --check demo-mode.js
       - run: node --check sw76-readiness.js
       - run: node --check pwa-device-readiness.js

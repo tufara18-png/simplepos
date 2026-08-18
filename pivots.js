@@ -27,7 +27,10 @@ window.fetch=async(input,init={})=>{
     try{
       const body=JSON.parse(init.body);
       if(seatEnabled&&/\/rest\/v1\/order_items(?:\?|$)/.test(url)){
-        const enrich=x=>x&&typeof x==='object'&&!Array.isArray(x)&&x.order_id&&x.seat_number==null?{...x,seat_number:currentSeat}:x;
+        // The highlighted pill is what the server actually sees, so it wins; the
+        // module state is only the fallback before the bar has been drawn.
+        const seat=activeSeatFromUi()??currentSeat;
+        const enrich=x=>x&&typeof x==='object'&&!Array.isArray(x)&&x.order_id&&x.seat_number==null?{...x,seat_number:seat}:x;
         const next=Array.isArray(body)?body.map(enrich):enrich(body);
         init={...init,body:JSON.stringify(next)};
       }
@@ -41,6 +44,9 @@ window.fetch=async(input,init={})=>{
   return wrappedFetch(input,init);
 };
 
+// Read back the highlighted pill rather than trusting module state alone, so a
+// stale currentSeat can never send a dish to the wrong person.
+function activeSeatFromUi(){const el=$('#pivotSeatBar [data-seat-go].active');const n=Number(el?.dataset?.seatGo||0);return Number.isInteger(n)&&n>0?n:null}
 function guestCount(){const text=$('#guestButton')?.textContent||'1';const n=parseInt(text,10);return Number.isInteger(n)&&n>0?n:1}
 function visibleItemIds(selector,attr){return $$(selector).map(el=>el.querySelector(`[${attr}]`)?.getAttribute(attr)||el.getAttribute(attr)).filter(Boolean)}
 async function loadItems(ids){if(!ids.length)return[];const unique=[...new Set(ids)];const rows=await rest(`order_items?id=in.(${unique.join(',')})&select=id,order_id,name,unit_price,quantity,paid_quantity,seat_number,kitchen_status,share_group_id`);rows.forEach(r=>seatCache.set(r.id,r));return rows}
