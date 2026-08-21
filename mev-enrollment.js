@@ -66,7 +66,7 @@ export async function renderMevEnrollmentInto(host, { onChange } = {}) {
     <div class="form-two">${fieldRow('mevAuthCode', "Code d'autorisation", cfg.authorization_code || '', 'X9X9-X9X9')}${fieldRow('mevOperatorId', "N° d'identification de l'exploitant", cfg.operator_identification_number || '')}</div>
     <div class="form-two">${fieldRow('mevIdPartn', 'IDPARTN', cfg.id_partn || '')}</div>
     <div class="form-two">${fieldRow('mevIdSev', 'IDSEV', cfg.id_sev || '')}${fieldRow('mevIdVersi', 'IDVERSI', cfg.id_versi || '')}</div>
-    <div class="form-two">${fieldRow('mevCodCertif', 'CODCERTIF', cfg.cod_certif || '', 'RBC000000000 en DEV avant certification')}${fieldRow('mevVersi', 'VERSI (version Resto360)', cfg.versi || '1.0')}</div>
+    <div class="form-two">${fieldRow('mevCodCertif', 'CODCERTIF', cfg.cod_certif || '', 'FOB201999999 pour réaliser un cas d’essai (SW-77 §2.1.2)')}${fieldRow('mevVersi', 'VERSI (version Resto360)', cfg.versi || '1.0')}</div>
     <div class="form-two">${fieldRow('mevVersiParn', 'VERSIPARN (version précédente)', cfg.versi_parn || '0', '0 si première certification')}</div>
     <button id="mevSaveConfig" class="btn">Enregistrer l'inscription</button>
     <hr>
