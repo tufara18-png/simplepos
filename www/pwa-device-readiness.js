@@ -1,0 +1,1 @@
+../pwa-device-readiness.js

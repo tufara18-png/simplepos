@@ -1,0 +1,1 @@
+../sw76-readiness.js

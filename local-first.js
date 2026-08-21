@@ -30,7 +30,31 @@ async function replayOutbox(){if(replaying||!navigator.onLine||!REST_PREFIX)retu
 async function dispatchStatus(){const pending=(await storeAll('outbox').catch(()=>[])).length;const primed=!!(await storeGet('meta','primed').catch(()=>null));window.dispatchEvent(new CustomEvent('simplepos-local-status',{detail:{pending,primed,online:navigator.onLine}}))}
 function bridgeBase(){return (localStorage.getItem('simplepos-bridge-url')||CFG.bridgeUrl||'').replace(/\/$/,'')}
 function bridgeToken(){return localStorage.getItem('simplepos-bridge-token')||CFG.bridgeToken||''}
-async function routedPrint(input,init={}){const base=bridgeBase();if(!base)return originalFetch(input,init);const headers=new Headers(init.headers||{});const token=bridgeToken();if(token)headers.set('x-simplepos-token',token);return originalFetch(`${base}/print`,{...init,headers})}
+
+// Android (unlike Safari/WKWebView) can open a raw TCP socket, so the wrapped app talks to
+// the printer directly and never needs server.mjs. iOS and any browser fall through to the
+// existing bridge-URL / same-origin behaviour untouched below.
+function androidPrinterPlugin(){return window.Capacitor?.isNativePlatform?.()?window.Capacitor.Plugins?.PrinterBridge:null}
+async function nativePrint(body){
+  const plugin=androidPrinterPlugin();
+  try{
+    const r=await plugin.printReceipt({ip:body.ip,port:body.port||9100,text:body.text,cut:body.cut!==false});
+    return new Response(JSON.stringify({ok:true,ip:r.ip,port:r.port}),{status:200,headers:{'content-type':'application/json'}});
+  }catch(e){
+    return new Response(JSON.stringify({error:String(e?.message||e)}),{status:502,headers:{'content-type':'application/json'}});
+  }
+}
+async function kickDrawer(ip,port=9100,pin=0){
+  const plugin=androidPrinterPlugin();
+  if(!plugin)throw new Error('Tiroir-caisse disponible seulement dans l’appli Android');
+  return plugin.kickDrawer({ip,port,pin});
+}
+window.SimplePOSPrinter={kickDrawer,isAndroidNative:()=>!!androidPrinterPlugin()};
+
+async function routedPrint(input,init={}){
+  const plugin=androidPrinterPlugin();
+  if(plugin){const body=parseJsonBody(init.body);if(body)return nativePrint(body)}
+  const base=bridgeBase();if(!base)return originalFetch(input,init);const headers=new Headers(init.headers||{});const token=bridgeToken();if(token)headers.set('x-simplepos-token',token);return originalFetch(`${base}/print`,{...init,headers})}
 
 window.fetch=async function(input,init={}){const raw=typeof input==='string'?input:input.url;const method=String(init.method||(typeof input!=='string'&&input.method)||'GET').toUpperCase();if(raw==='/print'||raw.endsWith('/print')&&new URL(raw,location.href).origin===location.origin)return routedPrint(input,init);if(!REST_PREFIX||!raw.startsWith(REST_PREFIX))return originalFetch(input,init);
 const table=tableFromUrl(raw);if(method==='GET'){try{const r=await originalFetch(input,init);if(r.ok){const data=await r.clone().json().catch(()=>null);if(data!==null)await cacheSnapshot(raw,data)}return r}catch(e){const cached=await cachedGet(raw);if(cached)return cached;throw e}}
