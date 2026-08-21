@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {buildItems,buildMont,taxIndicator,interpretCodRetour,buildSignatureInput,buildTransactionSignatureInput,buildReqCertif,validateSevText} from './mev-protocol.js';
+import {buildItems,buildMont,taxIndicator,interpretCodRetour,buildSignatureInput,buildTransactionSignatureInput,buildOfflineBatchEnvelope,buildReqCertif,validateSevText} from './mev-protocol.js';
 
 function round2(n){return Math.round((Number(n)+Number.EPSILON)*100)/100}
 function calcTax(sub){const gst=round2(sub*0.05),qst=round2(sub*0.09975);return {gst,qst,total:round2(sub+gst+qst)}}
@@ -100,6 +100,13 @@ assert.deepEqual(buildItems([{name:'Article 1',quantity:1,line_total:4.80}]),[{q
 assert.equal(
   buildTransactionSignatureInput({noTrans:'T0000002',datTrans:'20260821164439',mont:{TPS:'+00000000.24',TVQ:'+00000000.48',apresTax:'+00000005.52'},noTax:{noTPS:'567891234RT0001',noTVQ:'5678912340TQ0001'},modImpr:'FAC',modTrans:'OPE',signa:{preced:'='.repeat(88)}}),
   'T0000002'+'20260821164439'+'+00000000.24'+'+00000000.48'+'+00000005.52'+'567891234RT0001'+'5678912340TQ0001'+'FAC'+'OPE'+'='.repeat(88)
+);
+// SW-73.D: the transLot JSON array is most-recent-first even though the signature chain
+// (each one's signa.preced == the previous one's signa.actu) runs oldest-first -- confirmed
+// live (2026-08-21, noLot 0000131830, HTTP 200) with a real two-transaction offline batch.
+assert.deepEqual(
+  buildOfflineBatchEnvelope([{noTrans:'T0000007'},{noTrans:'T0000008'}]),
+  {reqTrans:{transLot:[{noTrans:'T0000008'},{noTrans:'T0000007'}]}}
 );
 const mont=buildMont({subtotal:4.80,gst:0.24,qst:0.48,total:5.52});
 assert.equal(mont.avantTax,'+000000004.80');

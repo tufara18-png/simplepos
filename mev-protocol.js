@@ -1,22 +1,27 @@
 // Real MEV-WEB request builders, per the SW-73 family now available to this partner.
 //
-// VERIFIED LIVE (2026-08-21): a "certificats" AJO enrolment followed by a "transaction" RFER
-// (reçu de fermeture) built by these exact functions were both sent to Revenu Québec's real
-// DEV environment (mTLS with the certificate the first call returned) and both came back
-// accepted (HTTP 201, then HTTP 200 with a real psiNoTrans). This is not a guess anymore for
-// the fields exercised by that round trip: sectActi, items[].{qte,descr,prix,tax,acti}, mont,
-// noDossFO, noTax, commerElectr, typTrans/modPai/modImpr/formImpr/modTrans, signa (both the
-// header SIGNATRANSM and the body's own signa.actu, which use different, confirmed
-// concatenations -- see buildSignatureInput vs buildTransactionSignatureInput), emprCertifSEV,
-// SEV, utc. Three real bugs this exposed and fixed: "utc" and item "acti" are mandatory, not
-// optional as the spec's prose reads at a skim, and the reqTrans-level "noTax"/"noDossFO"
-// fields were missing entirely from an earlier pass.
+// VERIFIED LIVE (2026-08-21) against Revenu Québec's real DEV environment, mTLS with the
+// certificate a "certificats" AJO enrolment returned, all HTTP 200/201 with real psi
+// identifiers back: a normal cash "reçu de fermeture" (RFER), the same with a tip (mont.pourb),
+// a transaction cancelled in progress (typTrans "SOB", modImpr "ANN", every per-item field
+// also "SOB" including "acti" -- "acti":"NON" on a SOB item is explicitly rejected), a credit
+// note (RFER with negative mont/item amounts and a "refs" entry pointing at the original
+// transaction), and a two-transaction offline batch ("transLot", no "transActu": the JSON
+// array is most-recent-first while the header signature concatenation is oldest-first, and the
+// signature chain -- each transaction's signa.preced equal to the previous one's signa.actu --
+// carries correctly across a batch). Confirmed correct for everything above: sectActi,
+// items[].{qte,descr,prix,tax,acti}, mont (including pourb), noDossFO, noTax, commerElectr,
+// typTrans/modPai/modImpr/formImpr/modTrans, refs, transLot, signa (the header SIGNATRANSM and
+// the body's own signa.actu use different, confirmed concatenations -- see buildSignatureInput
+// vs buildTransactionSignatureInput), emprCertifSEV, SEV, utc.
 //
-// Not yet exercised by that round trip, so still lower-confidence: refs (correction/credit-note
-// references), transLot (offline batching), docAdr, clint, and the tip/versement (pourb/versActu
-// etc.) fields in mont -- the test transaction was a single-item cash sale with no tip, no
-// table, no batch and no correction. Re-verify each of those against DEV before relying on them
-// for a real cas d'essai.
+// Real bugs this exposed and fixed along the way: "utc" and item "acti" are mandatory, not
+// optional as the spec's prose reads at a skim; reqTrans-level "noTax"/"noDossFO" were missing
+// entirely from an earlier pass; a SOB (cancelled) item must carry "acti":"SOB", not "NON".
+//
+// Still never exercised, so still lower-confidence: docAdr in a non-default shape, clint (B2B),
+// versActu/versAnt/sold (payment in instalments), and estimation/soumission/addition typTrans
+// values (only RFER and SOB have been sent). Re-verify each against DEV before relying on it.
 //
 // This module builds JSON. It does not send anything anywhere and it does not know about
 // Supabase, fetch, or the DOM, so it can be unit-tested with plain sample data (see tests.mjs).
@@ -127,6 +132,11 @@ const DOCUMENT_TYPE_TYP_TRANS = {
   closing_receipt: 'RFER',
   credit_note: 'RFER',
   correction: 'RFER',
+  // Confirmed live: a SOB (cancelled-in-progress) transaction additionally needs every item's
+  // "acti" set to "SOB" (buildItems always sets "NON" -- there is no caller yet that builds a
+  // cancellation through buildReqTrans, so that override is not wired up here; do not reuse
+  // buildItems()'s output unmodified for a "cancellation" documentType without fixing that).
+  cancellation: 'SOB',
 };
 
 /**
@@ -220,6 +230,20 @@ export function buildReqTrans({
  */
 export function buildTransactionSignatureInput(transActu) {
   return `${transActu.noTrans}${transActu.datTrans}${transActu.mont.TPS}${transActu.mont.TVQ}${transActu.mont.apresTax}${transActu.noTax.noTPS}${transActu.noTax.noTVQ}${transActu.modImpr}${transActu.modTrans}${transActu.signa.preced}`;
+}
+
+/**
+ * Wraps a queue of offline transActu objects (already built and signed, each one's
+ * signa.preced equal to the previous one's signa.actu -- the chain must not skip) into a
+ * "transLot" envelope, with no "transActu" of its own. Confirmed live (2026-08-21): the JSON
+ * array must be most-recent-first even though the chain itself, and the header signature
+ * (see buildSignatureInput -- pass transactionSignatures in chain order, oldest first), are
+ * oldest-first. `offlineQueue` here must already be in chain order (oldest first); this
+ * function does the most-recent-first reversal for the JSON array so callers do not have to
+ * remember which order goes where.
+ */
+export function buildOfflineBatchEnvelope(offlineQueueOldestFirst) {
+  return { reqTrans: { transLot: [...offlineQueueOldestFirst].reverse() } };
 }
 
 /**
