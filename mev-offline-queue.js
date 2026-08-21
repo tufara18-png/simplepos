@@ -78,7 +78,7 @@ export async function queueLength(deviceId) {
  * buildSignatureInput already handle that split correctly). Clears the queue only if Revenu
  * Québec accepts the batch; leaves it queued on any failure so nothing is lost.
  */
-export async function flushQueue(deviceId, { headers, url, signHeader }) {
+export async function flushQueue(deviceId, { headers, url, signHeader, keyAlias, certificatePem }) {
   const rows = await allForDevice(deviceId);
   if (!rows.length) return { sent: 0 };
   const chain = rows.map((r) => r.transActu);
@@ -95,7 +95,7 @@ export async function flushQueue(deviceId, { headers, url, signHeader }) {
   const sendHeaders = { ...headers, SIGNATRANSM: signature };
   delete sendHeaders.__authorizationCode;
 
-  const response = await window.SimplePOSMev.sendRequest({ url, headers: sendHeaders, body: JSON.stringify(envelope) });
+  const response = await window.SimplePOSMev.sendRequest({ url, headers: sendHeaders, body: JSON.stringify(envelope), keyAlias, certificatePem });
   const status = Number(response.status);
   if (status >= 200 && status < 300) {
     await withStore('readwrite', (store) => rows.forEach((r) => store.delete(r.id)));

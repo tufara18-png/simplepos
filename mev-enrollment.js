@@ -59,6 +59,7 @@ async function render() {
     <div class="form-two">${fieldRow('mevIdPartn', 'IDPARTN', cfg.id_partn || '')}</div>
     <div class="form-two">${fieldRow('mevIdSev', 'IDSEV', cfg.id_sev || '')}${fieldRow('mevIdVersi', 'IDVERSI', cfg.id_versi || '')}</div>
     <div class="form-two">${fieldRow('mevCodCertif', 'CODCERTIF', cfg.cod_certif || '', 'RBC000000000 en DEV avant certification')}${fieldRow('mevVersi', 'VERSI (version SimplePOS)', cfg.versi || '1.0')}</div>
+    <div class="form-two">${fieldRow('mevVersiParn', 'VERSIPARN (version précédente)', cfg.versi_parn || '0', '0 si première certification')}</div>
     <button id="mevSaveConfig" class="btn">Enregistrer l'inscription</button>
     <hr>
     <div class="mev-enroll-status">
@@ -84,6 +85,7 @@ async function render() {
         id_versi: $('#mevIdVersi').value.trim() || null,
         cod_certif: $('#mevCodCertif').value.trim() || null,
         versi: $('#mevVersi').value.trim() || null,
+        versi_parn: $('#mevVersiParn').value.trim() || '0',
       });
       $('#mevEnrollResult').textContent = 'Inscription enregistrée.';
     } catch (e) { $('#mevEnrollResult').textContent = `Erreur : ${e.message}`; }

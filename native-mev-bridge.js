@@ -49,9 +49,12 @@ window.SimplePOSMev = {
   // Sends the request directly from the device (native HTTP, not the WebView's fetch) --
   // required both because Revenu Québec's API has no CORS headers (a WebView fetch would
   // never get past the browser's own cross-origin check) and because Deno's fetch was
-  // confirmed live to drop the IDVERSI header en route to this exact endpoint.
-  sendRequest({ url, headers, body }) {
+  // confirmed live to drop the IDVERSI header en route to this exact endpoint. keyAlias +
+  // certificatePem are mandatory: /transaction is behind mutual TLS (confirmed live), so the
+  // plugin needs the device's own AndroidKeyStore key and its real Revenu-Québec-issued
+  // certificate to present during the handshake, not just the request itself.
+  sendRequest({ url, headers, body, keyAlias, certificatePem }) {
     const p = mevProtocolPlugin();
-    return p ? p.sendRequest({ url, headers, body }) : unavailable();
+    return p ? p.sendRequest({ url, headers, body, keyAlias, certificatePem }) : unavailable();
   },
 };

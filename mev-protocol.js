@@ -164,7 +164,10 @@ export function buildReqTrans({
 
   const transActu = {
     sectActi,
-    noTrans: String(invoice.local_reference || invoice.id).slice(0, 10),
+    // invoices.invoice_number is the gapless, server-assigned, per-restaurant sequence
+    // (fiscal_ledger_hardening migration) -- the actual candidate for "unique par jour civil".
+    // invoice.id (a UUID) is not that and must never be used here, even truncated.
+    noTrans: String(invoice.invoice_number ?? invoice.id).slice(0, 10),
     nomMandt: String(restaurant.legal_name || restaurant.name || '').slice(0, 64),
     nomUtil: String(invoice.user_name || restaurant.name || '').slice(0, 64),
     relaCommer: 'B2C',

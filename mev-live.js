@@ -57,18 +57,30 @@ export async function submitMevTransaction({ restaurant, invoice, invoiceItems, 
   // NOTPS/NOTVQ are the exploitant's own real registration numbers -- they live on the
   // restaurant record, never on mev_partner_config (which only holds the concepteur/partner
   // and per-device enrolment constants).
-  const effectivePartnerConfig = { ...partnerConfig, no_tps: restaurant.gst_number, no_tvq: restaurant.qst_number };
+  const effectivePartnerConfig = { ...partnerConfig, no_tps: restaurant.gst_number, no_tvq: restaurant.qst_number, versi_parn: partnerConfig.versi_parn || '0' };
 
   // Check the local not-yet-sent queue before the device's last confirmed signature: a second
   // offline sale must chain to the first one's signature immediately, not wait for either to
   // reach Revenu Québec (see mev-offline-queue.js).
   const preced = await effectivePreced(device.id, device.last_transaction_signature);
+  // A backlog already exists (an earlier queue-then-flush attempt failed, or the device only
+  // just came back online and hasn't flushed yet). This new transaction must not be sent solo
+  // ahead of that backlog -- Revenu Québec would see a signature chain referencing a prior
+  // transaction it has never received. Queue it too, in order, and let flushMevQueue send
+  // everything together.
+  const hasBacklog = (await queueLength(device.id)) > 0;
+
+  // nomUtil must identify the staff member who rang the sale, not the business -- but nothing
+  // in the schema tracks a display name for a restaurant_members row (just user_id, a UUID).
+  // The only real per-person signal available at runtime is the logged-in account's own email;
+  // falling back to restaurant.name here would silently misreport the field.
+  const effectiveInvoice = { ...invoice, user_name: invoice.user_name || session()?.user?.email };
 
   const { reqTrans } = buildReqTrans({
     restaurant,
     device,
     partnerConfig: effectivePartnerConfig,
-    invoice,
+    invoice: effectiveInvoice,
     invoiceItems,
     paymentMethod,
     documentType: 'closing_receipt',
@@ -85,13 +97,16 @@ export async function submitMevTransaction({ restaurant, invoice, invoiceItems, 
   const headers = buildHeaders({ environment: partnerConfig.environment || 'DEV', device, partnerConfig: effectivePartnerConfig });
   const url = endpointFor('transaction', null, headers.ENVIRN);
 
-  // Offline (or flaky network): the transaction is already fully signed and self-consistent,
-  // so queue it exactly as-is rather than blocking the sale. flushMevQueue() (called on
-  // reconnect) sends it, and everything after it that got queued in the meantime, as one
-  // transLot batch -- the same mechanism confirmed live for a two-transaction batch.
-  if (!navigator.onLine) {
+  // Offline, or a backlog already exists: the transaction is already fully signed and
+  // self-consistent, so queue it exactly as-is rather than blocking the sale or sending it
+  // out of order. flushMevQueue() sends it, and everything queued with it, as one transLot
+  // batch -- the same mechanism confirmed live for a two-transaction batch. If we do have a
+  // network, try flushing right away so a single blip does not leave things queued
+  // indefinitely; a failed opportunistic flush is not this call's problem to report.
+  if (!navigator.onLine || hasBacklog) {
     await enqueueSignedTransaction(device.id, transActu);
-    return { environment: headers.ENVIRN, certified: true, status: 'retryable', produced_offline: true, transaction_id: null, qr_payload: null };
+    if (navigator.onLine) flushMevQueue(restaurant).catch(() => {});
+    return { environment: headers.ENVIRN, certified: true, status: 'retryable', produced_offline: !navigator.onLine, transaction_id: null, qr_payload: null };
   }
 
   const headerSignInput = buildSignatureInput({ authorizationCode: partnerConfig.authorization_code, idApprl: device.id_apprl, transactionSignatures: [transActu.signa.actu] });
@@ -101,7 +116,7 @@ export async function submitMevTransaction({ restaurant, invoice, invoiceItems, 
 
   let response;
   try {
-    response = await window.SimplePOSMev.sendRequest({ url, headers, body: JSON.stringify({ reqTrans: { transActu } }) });
+    response = await window.SimplePOSMev.sendRequest({ url, headers, body: JSON.stringify({ reqTrans: { transActu } }), keyAlias: DEVICE_ALIAS, certificatePem: device.certificate_pem });
   } catch (networkError) {
     // navigator.onLine said "online" but the request itself failed (captive portal, DNS
     // blip, etc.) -- same treatment as the explicit offline path above, not a rejection.
@@ -135,17 +150,22 @@ export async function submitMevTransaction({ restaurant, invoice, invoiceItems, 
 }
 
 /**
- * Call on reconnect (window "online" event) or from a periodic poller. Sends everything
- * queued for this restaurant's device as one transLot batch and advances
+ * Call on reconnect (window "online" event) or from a periodic poller, with the same
+ * restaurant object app-v2.js already holds (not just its id -- NOTPS/NOTVQ come from
+ * restaurant.gst_number/qst_number, same as submitMevTransaction, and mev_partner_config has
+ * no tax-number columns of its own to fall back on). Sends everything queued for this
+ * restaurant's device as one transLot batch and advances
  * mev_devices.last_transaction_signature only if Revenu Québec accepts it.
  */
-export async function flushMevQueue(restaurantId) {
+export async function flushMevQueue(restaurant) {
   if (!window.SimplePOSMev?.isAndroidNative?.() || !navigator.onLine) return { sent: 0 };
-  const { device, partnerConfig } = await loadDeviceAndConfig(restaurantId);
-  if (!device?.id) return { sent: 0 };
+  const { device, partnerConfig } = await loadDeviceAndConfig(restaurant.id);
+  if (!device?.id || !partnerConfig) return { sent: 0 };
   if ((await queueLength(device.id)) === 0) return { sent: 0 };
+  if (!restaurant.gst_number || !restaurant.qst_number) return { sent: 0, error: 'Numéros de TPS/TVQ manquants' };
 
-  const headers = buildHeaders({ environment: partnerConfig.environment || 'DEV', device, partnerConfig });
+  const effectivePartnerConfig = { ...partnerConfig, no_tps: restaurant.gst_number, no_tvq: restaurant.qst_number, versi_parn: partnerConfig.versi_parn || '0' };
+  const headers = buildHeaders({ environment: partnerConfig.environment || 'DEV', device, partnerConfig: effectivePartnerConfig });
   headers.EMPRCERTIFTRANSM = device.certificate_thumbprint_sha1;
   headers.__authorizationCode = partnerConfig.authorization_code;
   const url = endpointFor('transaction', null, headers.ENVIRN);
@@ -153,6 +173,8 @@ export async function flushMevQueue(restaurantId) {
   const result = await flushQueue(device.id, {
     headers,
     url,
+    keyAlias: DEVICE_ALIAS,
+    certificatePem: device.certificate_pem,
     signHeader: async (text) => (await window.SimplePOSMev.sign(DEVICE_ALIAS, text)).signatureBase64,
   });
   if (result.sent > 0 && result.lastSignature) {
