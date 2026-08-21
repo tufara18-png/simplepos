@@ -8,6 +8,7 @@
 // never a silently-invented fiscal outcome.
 
 import { buildReqTrans, buildTransactionSignatureInput, buildHeaders, buildSignatureInput, endpointFor, interpretCodRetour } from './mev-protocol.js';
+import { enqueueSignedTransaction, effectivePreced, flushQueue, queueLength } from './mev-offline-queue.js';
 
 const CFG = window.SIMPLEPOS_CONFIG || {};
 const API = CFG.supabaseUrl ? `${CFG.supabaseUrl}/rest/v1` : '';
@@ -58,6 +59,11 @@ export async function submitMevTransaction({ restaurant, invoice, invoiceItems, 
   // and per-device enrolment constants).
   const effectivePartnerConfig = { ...partnerConfig, no_tps: restaurant.gst_number, no_tvq: restaurant.qst_number };
 
+  // Check the local not-yet-sent queue before the device's last confirmed signature: a second
+  // offline sale must chain to the first one's signature immediately, not wait for either to
+  // reach Revenu Québec (see mev-offline-queue.js).
+  const preced = await effectivePreced(device.id, device.last_transaction_signature);
+
   const { reqTrans } = buildReqTrans({
     restaurant,
     device,
@@ -68,7 +74,7 @@ export async function submitMevTransaction({ restaurant, invoice, invoiceItems, 
     documentType: 'closing_receipt',
     tableLabel,
     guestCount,
-    signaturePreviousBase88: device.last_transaction_signature || undefined,
+    signaturePreviousBase88: preced,
   });
   const transActu = reqTrans.transActu;
 
@@ -77,20 +83,37 @@ export async function submitMevTransaction({ restaurant, invoice, invoiceItems, 
   transActu.signa.actu = signed.signatureBase64;
 
   const headers = buildHeaders({ environment: partnerConfig.environment || 'DEV', device, partnerConfig: effectivePartnerConfig });
+  const url = endpointFor('transaction', null, headers.ENVIRN);
+
+  // Offline (or flaky network): the transaction is already fully signed and self-consistent,
+  // so queue it exactly as-is rather than blocking the sale. flushMevQueue() (called on
+  // reconnect) sends it, and everything after it that got queued in the meantime, as one
+  // transLot batch -- the same mechanism confirmed live for a two-transaction batch.
+  if (!navigator.onLine) {
+    await enqueueSignedTransaction(device.id, transActu);
+    return { environment: headers.ENVIRN, certified: true, status: 'retryable', produced_offline: true, transaction_id: null, qr_payload: null };
+  }
+
   const headerSignInput = buildSignatureInput({ authorizationCode: partnerConfig.authorization_code, idApprl: device.id_apprl, transactionSignatures: [transActu.signa.actu] });
   const headerSigned = await window.SimplePOSMev.sign(DEVICE_ALIAS, headerSignInput);
   headers.SIGNATRANSM = headerSigned.signatureBase64;
   headers.EMPRCERTIFTRANSM = device.certificate_thumbprint_sha1;
 
-  const url = endpointFor('transaction', null, headers.ENVIRN);
-  const body = JSON.stringify({ reqTrans: { transActu } });
+  let response;
+  try {
+    response = await window.SimplePOSMev.sendRequest({ url, headers, body: JSON.stringify({ reqTrans: { transActu } }) });
+  } catch (networkError) {
+    // navigator.onLine said "online" but the request itself failed (captive portal, DNS
+    // blip, etc.) -- same treatment as the explicit offline path above, not a rejection.
+    await enqueueSignedTransaction(device.id, transActu);
+    return { environment: headers.ENVIRN, certified: true, status: 'retryable', produced_offline: true, transaction_id: null, qr_payload: null, error_message: String(networkError?.message || networkError) };
+  }
 
-  const response = await window.SimplePOSMev.sendRequest({ url, headers, body });
   const status = Number(response.status);
   const data = JSON.parse(response.body || '{}');
   const errs = data?.retourTrans?.retourTransActu?.listErr || [];
 
-  // Chain state only advances on a real accept -- an offline/rejected attempt must not move
+  // Chain state only advances on a real accept -- a rejected attempt must not move
   // signa.preced forward, or the next real transaction's signature chain would not match what
   // Revenu Québec actually has on file for this device.
   if (status >= 200 && status < 300) {
@@ -109,4 +132,31 @@ export async function submitMevTransaction({ restaurant, invoice, invoiceItems, 
     qr_payload: null, // still blocked on the real QR encryption key -- see docs/certification-readiness.md
     raw: data,
   };
+}
+
+/**
+ * Call on reconnect (window "online" event) or from a periodic poller. Sends everything
+ * queued for this restaurant's device as one transLot batch and advances
+ * mev_devices.last_transaction_signature only if Revenu Québec accepts it.
+ */
+export async function flushMevQueue(restaurantId) {
+  if (!window.SimplePOSMev?.isAndroidNative?.() || !navigator.onLine) return { sent: 0 };
+  const { device, partnerConfig } = await loadDeviceAndConfig(restaurantId);
+  if (!device?.id) return { sent: 0 };
+  if ((await queueLength(device.id)) === 0) return { sent: 0 };
+
+  const headers = buildHeaders({ environment: partnerConfig.environment || 'DEV', device, partnerConfig });
+  headers.EMPRCERTIFTRANSM = device.certificate_thumbprint_sha1;
+  headers.__authorizationCode = partnerConfig.authorization_code;
+  const url = endpointFor('transaction', null, headers.ENVIRN);
+
+  const result = await flushQueue(device.id, {
+    headers,
+    url,
+    signHeader: async (text) => (await window.SimplePOSMev.sign(DEVICE_ALIAS, text)).signatureBase64,
+  });
+  if (result.sent > 0 && result.lastSignature) {
+    await api(`mev_devices?id=eq.${device.id}`, { method: 'PATCH', prefer: 'return=minimal', body: { last_transaction_signature: result.lastSignature, updated_at: new Date().toISOString() } });
+  }
+  return result;
 }
