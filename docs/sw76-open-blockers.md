@@ -1,6 +1,6 @@
 # Blocages officiels restant après la fondation SW-76
 
-SimplePOS reste non certifié. Les éléments ci-dessous ne sont volontairement pas simulés comme s’ils étaient officiels :
+Resto360 reste non certifié. Les éléments ci-dessous ne sont volontairement pas simulés comme s’ils étaient officiels :
 
 1. génération et cycle de vie des certificats Revenu Québec;
 2. clé privée non exportable et CSR;

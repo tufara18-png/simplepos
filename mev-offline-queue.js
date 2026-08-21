@@ -14,7 +14,7 @@
 // exercised on a real device or against a real extended offline gap. Treat as a first
 // implementation to validate on-device, not as proven.
 
-const DB_NAME = 'simplepos-mev-queue-v1';
+const DB_NAME = 'resto360-mev-queue-v1';
 const STORE = 'queue';
 
 function openDb() {
@@ -95,7 +95,7 @@ export async function flushQueue(deviceId, { headers, url, signHeader, keyAlias,
   const sendHeaders = { ...headers, SIGNATRANSM: signature };
   delete sendHeaders.__authorizationCode;
 
-  const response = await window.SimplePOSMev.sendRequest({ url, headers: sendHeaders, body: JSON.stringify(envelope), keyAlias, certificatePem });
+  const response = await window.Resto360Mev.sendRequest({ url, headers: sendHeaders, body: JSON.stringify(envelope), keyAlias, certificatePem });
   const status = Number(response.status);
   if (status >= 200 && status < 300) {
     await withStore('readwrite', (store) => rows.forEach((r) => store.delete(r.id)));

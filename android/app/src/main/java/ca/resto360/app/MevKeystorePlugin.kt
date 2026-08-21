@@ -1,4 +1,4 @@
-package ca.simplepos.app
+package ca.resto360.app
 
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
@@ -36,7 +36,7 @@ import java.util.Base64
  * Local capability only. This plugin never receives, exports or transmits a private key --
  * AndroidKeyStore is designed so the private key material never leaves secure hardware/TEE.
  *
- * What this DOES give SimplePOS, now that SW-73 confirms the algorithm (ECDSA P-256, SHA-256,
+ * What this DOES give Resto360, now that SW-73 confirms the algorithm (ECDSA P-256, SHA-256,
  * IEEE P1363 signature output) and the CSR subject fields (SW-73 tables 9-11):
  *   - a non-exportable ECDSA P-256 key pair per device, generated on first use;
  *   - a PKCS#10 CSR built from that key, ready to send as the "csr" field of a "certificats"
@@ -133,7 +133,7 @@ class MevKeystorePlugin : Plugin() {
     /**
      * Builds a PKCS#10 CSR for an exploitant (SW-73 tableaux 10/11 -- "SEV relié à un serveur"
      * and "SEV autonome" share the same subject fields). The administrateur-de-serveur variant
-     * (tableau 9) is a different, unimplemented subject shape; SimplePOS's current architecture
+     * (tableau 9) is a different, unimplemented subject shape; Resto360's current architecture
      * (mev-gateway as a thin per-restaurant relay, not a shared server managing several
      * exploitants under one admin certificate) does not need it.
      *

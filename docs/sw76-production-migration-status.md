@@ -1,6 +1,6 @@
 # État des migrations de production — 17 août 2026
 
-Les migrations suivantes ont été appliquées au projet Supabase SimplePOS (`okzniurqfhzhsnhifchj`) :
+Les migrations suivantes ont été appliquées au projet Supabase Resto360 (`okzniurqfhzhsnhifchj`) :
 
 - `left_without_paying_and_user_reports`;
 - `demo_mode`;

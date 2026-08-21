@@ -1,4 +1,4 @@
-const CFG = window.SIMPLEPOS_CONFIG || {};
+const CFG = window.RESTO360_CONFIG || {};
 const API = `${CFG.supabaseUrl}/rest/v1`;
 const AUTH_KEY = CFG.supabasePublishableKey;
 const SIM_URL = CFG.mevSimulatorUrl;
@@ -11,7 +11,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const money = (n) => Number(n || 0).toLocaleString('fr-CA', { style: 'currency', currency: 'CAD' });
 
 function session() {
-  try { return JSON.parse(localStorage.getItem('simplepos-session') || 'null'); }
+  try { return JSON.parse(localStorage.getItem('resto360-session') || 'null'); }
   catch { return null; }
 }
 
@@ -88,13 +88,13 @@ function showHealth(kind, text) {
 }
 
 async function ensureSimulatorDevice(rid) {
-  const devices = await rest(`mev_devices?restaurant_id=eq.${rid}&device_key=eq.simplepos-simulator&select=*&limit=1`);
+  const devices = await rest(`mev_devices?restaurant_id=eq.${rid}&device_key=eq.resto360-simulator&select=*&limit=1`);
   if (devices?.length) return devices[0];
   const created = await rest('mev_devices', {
     method: 'POST',
     body: {
       restaurant_id: rid,
-      device_key: 'simplepos-simulator',
+      device_key: 'resto360-simulator',
       environment: 'simulator',
       status: 'active',
       certificate_status: 'active',
@@ -338,7 +338,7 @@ async function refreshHealth(rid) {
     deviceBox.innerHTML = (devices || []).map(d => `<div class="admin-row"><div><strong>${d.device_key}</strong><span>${d.environment} · appareil ${d.status} · certificat ${d.certificate_status}</span></div></div>`).join('') || '<div class="muted">Aucun appareil MEV.</div>';
   }
 
-  if (unprinted) showHealth('warn', `${unprinted} reçu de fermeture à imprimer — SimplePOS réessaie automatiquement.`);
+  if (unprinted) showHealth('warn', `${unprinted} reçu de fermeture à imprimer — Resto360 réessaie automatiquement.`);
   else if (blocked) showHealth('warn', `${blocked} transaction MEV en erreur — vérification requise.`);
   else if (retry) showHealth('warn', `${retry} transaction MEV en attente de retransmission.`);
   else showHealth('', '');

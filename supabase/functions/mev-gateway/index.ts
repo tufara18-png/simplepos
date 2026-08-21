@@ -21,7 +21,7 @@ Deno.serve(async (req: Request) => {
   if (req.method === "GET") {
     const transport = Deno.env.get("MEV_TRANSPORT") || "simulator";
     return json({
-      service: "SimplePOS MEV gateway",
+      service: "Resto360 MEV gateway",
       transport,
       production_ready: false,
       note: transport === "simulator"

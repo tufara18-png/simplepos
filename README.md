@@ -1,10 +1,10 @@
-# SimplePOS
+# Resto360
 
 PWA restaurant : tables → commande → cuisine → addition → paiement → MEV → reçu de fermeture.
 
 ## État actuel
 
-La branche `main` est connectée au projet Supabase **SimplePOS** (`ca-central-1`).
+La branche `main` est connectée au projet Supabase **Resto360** (`ca-central-1`).
 
 Fonctions actives :
 - authentification Supabase;
@@ -65,7 +65,7 @@ Total terminal  : 67,84 $
 Pourboire       : 10,35 $
 ```
 
-Le terminal reste indépendant du POS. Le client choisit son pourboire sur le terminal; SimplePOS enregistre séparément le montant de la facture, le total terminal et le pourboire.
+Le terminal reste indépendant du POS. Le client choisit son pourboire sur le terminal; Resto360 enregistre séparément le montant de la facture, le total terminal et le pourboire.
 
 ## MEV-WEB
 
@@ -134,4 +134,4 @@ GitHub Actions exécute les mêmes vérifications sur `main`.
 
 ## Limite réglementaire
 
-SimplePOS n'est **pas encore un SEV certifié**. Le simulateur et ses reçus servent à valider le workflow applicatif. La certification réelle dépend des spécifications privées et de l'environnement de certification MEV-WEB fournis par Revenu Québec.
+Resto360 n'est **pas encore un SEV certifié**. Le simulateur et ses reçus servent à valider le workflow applicatif. La certification réelle dépend des spécifications privées et de l'environnement de certification MEV-WEB fournis par Revenu Québec.

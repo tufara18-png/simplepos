@@ -1,4 +1,4 @@
-package ca.simplepos.app
+package ca.resto360.app
 
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin

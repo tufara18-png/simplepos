@@ -32,7 +32,7 @@ Les tickets cuisine sont exclus du registre fiscal.
 
 ## Statut du numéro imprimé
 
-La mention `RÉFÉRENCE LOCALE SP-...` est un identifiant SimplePOS unique et traçable. Ce n'est ni le numéro retourné par Revenu Québec ni une preuve de certification. Le document indique explicitement que le transport MEV officiel n'est pas configuré.
+La mention `RÉFÉRENCE LOCALE SP-...` est un identifiant Resto360 unique et traçable. Ce n'est ni le numéro retourné par Revenu Québec ni une preuve de certification. Le document indique explicitement que le transport MEV officiel n'est pas configuré.
 
 ## Éléments volontairement non inventés
 

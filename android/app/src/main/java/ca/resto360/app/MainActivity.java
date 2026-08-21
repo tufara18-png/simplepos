@@ -1,4 +1,4 @@
-package ca.simplepos.app;
+package ca.resto360.app;
 
 import com.getcapacitor.BridgeActivity;
 

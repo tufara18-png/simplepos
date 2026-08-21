@@ -84,7 +84,7 @@ class SimulatorTransport {
       return { ...base, status:"rejected", remote_status:"validation_rejected", document_id:null, retryable:false, retry_after_seconds:null, error_code:"SIM_REJECTED", error_message:"Transaction rejetée par le simulateur.", qr_payload:null, receipt:null };
     }
 
-    const qr = `SIMPLEPOS|SIMULATED-NOT-FISCAL|${transactionId}|${documentId}|${envelope.totals.total.toFixed(2)}`;
+    const qr = `RESTO360|SIMULATED-NOT-FISCAL|${transactionId}|${documentId}|${envelope.totals.total.toFixed(2)}`;
     return {
       ...base,
       status:"accepted",
@@ -124,7 +124,7 @@ Deno.serve(async (req:Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method === "GET") {
     return Response.json({
-      service:"SimplePOS MEV simulator",
+      service:"Resto360 MEV simulator",
       status:"ready",
       environment:"SIMULATOR",
       certified:false,

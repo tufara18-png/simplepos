@@ -1,4 +1,4 @@
-window.SIMPLEPOS_CONFIG = {
+window.RESTO360_CONFIG = {
   supabaseUrl: 'https://okzniurqfhzhsnhifchj.supabase.co',
   supabasePublishableKey: 'sb_publishable_NFtb_UKR7MTwW78c4QScfQ_jPl5cI6B',
   // Legacy anon JWT is public by design and is used only to invoke JWT-protected Edge Functions.

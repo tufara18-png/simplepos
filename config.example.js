@@ -1,4 +1,4 @@
-window.SIMPLEPOS_CONFIG = {
+window.RESTO360_CONFIG = {
   supabaseUrl: 'https://PROJECT.supabase.co',
   supabasePublishableKey: 'sb_publishable_...',
   // Legacy key name retained by the current frontend; point it at mev-gateway.

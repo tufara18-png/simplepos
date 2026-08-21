@@ -1,4 +1,4 @@
-const CFG=window.SIMPLEPOS_CONFIG||{};
+const CFG=window.RESTO360_CONFIG||{};
 const API=`${CFG.supabaseUrl}/rest/v1`;
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const seatCache=new Map();
@@ -9,7 +9,7 @@ let openedSeats=1;
 // Per-restaurant switch: table service wants seats, a counter does not.
 let seatEnabled=true,settingsLoadedFor=null,restaurantId=null;
 
-function session(){try{return JSON.parse(localStorage.getItem('simplepos-session')||'null')}catch{return null}}
+function session(){try{return JSON.parse(localStorage.getItem('resto360-session')||'null')}catch{return null}}
 function headers(extra={}){const s=session();return{apikey:CFG.supabasePublishableKey||'',Authorization:`Bearer ${s?.access_token||''}`,'Content-Type':'application/json',...extra}}
 function money(n){return Number(n||0).toLocaleString('fr-CA',{style:'currency',currency:'CAD'})}
 function toast(message,type='ok'){const el=$('#toast');if(!el)return;el.textContent=message;el.dataset.type=type;el.classList.add('show');clearTimeout(el._pivotTimer);el._pivotTimer=setTimeout(()=>el.classList.remove('show'),2400)}
@@ -132,7 +132,7 @@ async function confirmShare(){
   await rest('rpc/split_order_item',{method:'POST',body:{p_order_item_id:id,p_seats:seats}});
   seatCache.delete(id);
   toast(`Article partagé entre ${seats.length} places`);
-  window.dispatchEvent(new CustomEvent('simplepos-reload'));
+  window.dispatchEvent(new CustomEvent('resto360-reload'));
   scheduleRefresh();
 }
 
@@ -252,7 +252,7 @@ async function confirmSplitScreen(){
   }
   closeSplitScreen();
   toast(changed.length?`${changed.length} article${changed.length>1?'s':''} réassigné${changed.length>1?'s':''}`:'Aucun changement');
-  window.dispatchEvent(new CustomEvent('simplepos-reload'));
+  window.dispatchEvent(new CustomEvent('resto360-reload'));
   scheduleRefresh();
 }
 async function printSeatAddition(seat){const rows=[...seatCache.values()].filter(x=>Number(x.seat_number||1)===seat&&x.kitchen_status!=='cancelled'&&Number(x.paid_quantity||0)<Number(x.quantity||1));if(!rows.length)throw new Error(`Aucun article impayé pour la place ${seat}`);const orderId=rows[0].order_id;const orders=await rest(`orders?id=eq.${orderId}&select=id,restaurant_id,table_id,guest_count&limit=1`),order=orders?.[0];if(!order)throw new Error('Commande introuvable');const [settings,company,printer,tables]=await Promise.all([rest(`app_settings?restaurant_id=eq.${order.restaurant_id}&select=tax_gst,tax_qst&limit=1`),rest(`restaurants?id=eq.${order.restaurant_id}&select=name,legal_name,address,city,postal_code,phone,gst_number,qst_number&limit=1`),rest(`printers?restaurant_id=eq.${order.restaurant_id}&role=eq.receipt&enabled=eq.true&select=ip_address,port&limit=1`),rest(`restaurant_tables?id=eq.${order.table_id}&select=number,label&limit=1`)]);const p=printer?.[0];if(!p?.ip_address)throw new Error('Configure l’imprimante reçu dans Gestion');const cfg=settings?.[0]||{},biz=company?.[0]||{},table=tables?.[0]||{};const gstRate=Number(cfg.tax_gst??.05),qstRate=Number(cfg.tax_qst??.09975);const sub=Math.round(rows.reduce((s,i)=>s+Number(i.unit_price)*(Number(i.quantity)-Number(i.paid_quantity||0)),0)*100)/100,gst=Math.round(sub*gstRate*100)/100,qst=Math.round(sub*qstRate*100)/100,total=Math.round((sub+gst+qst)*100)/100;const addr=[biz.address,[biz.city,biz.postal_code].filter(Boolean).join(' ')].filter(Boolean).join(', ');const lines=[biz.legal_name||biz.name,addr||null,biz.phone||null,biz.gst_number?`TPS ${biz.gst_number}`:null,biz.qst_number?`TVQ ${biz.qst_number}`:null,'FACTURE ORIGINALE',table.label||`Table ${table.number}`,`PLACE ${seat}`,'',...rows.map(i=>{const n=shareSize(i);const qty=Number(i.quantity)-Number(i.paid_quantity||0);const amount=money(Number(i.unit_price)*qty);return n?`${i.name} (part 1/${n})  ${amount}`:`${qty} x ${i.name}  ${amount}`}),'',`Sous-total ${money(sub)}`,`TPS ${money(gst)}`,`TVQ ${money(qst)}`,`TOTAL ${money(total)}`,''].filter(x=>x!==null);const r=await fetch('/print',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ip:p.ip_address,port:p.port||9100,text:lines.join('\n'),cut:true})});if(!r.ok)throw new Error('Imprimante reçu inaccessible');toast(`Addition place ${seat} imprimée`)}
@@ -315,4 +315,4 @@ function wire(){injectStyles();
   new MutationObserver(()=>{if($('#settingsScreen')?.classList.contains('active')){loadSeatSetting().then(()=>{ensureSeatSettingCard();const t=$('#seatTrackingToggle');if(t)t.checked=seatEnabled})}}).observe(document.body,{attributes:true,attributeFilter:['class'],subtree:true});const observer=new MutationObserver(scheduleRefresh);['ticketList','payItems','guestButton'].forEach(id=>{const el=document.getElementById(id);if(el)observer.observe(el,{childList:true,subtree:true,characterData:true})});$$('.screen').forEach(s=>observer.observe(s,{attributes:true,attributeFilter:['class']}));document.addEventListener('click',e=>{if(e.target.closest('[data-product]'))setTimeout(scheduleRefresh,60);if(e.target.closest('#guestButton'))setTimeout(scheduleRefresh,80)});scheduleRefresh()}
 if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',wire);else wire();
 
-window.SimplePOSPivots={get currentSeat(){return currentSeat},setCurrentSeat(n){if(Number.isInteger(n)&&n>0){currentSeat=n;renderSeatBar()}},refresh:scheduleRefresh,openSplit:openSplitScreen};
+window.Resto360Pivots={get currentSeat(){return currentSeat},setCurrentSeat(n){if(Number.isInteger(n)&&n>0){currentSeat=n;renderSeatBar()}},refresh:scheduleRefresh,openSplit:openSplitScreen};

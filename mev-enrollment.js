@@ -5,12 +5,12 @@
 // wrapper today), the card explains that instead of pretending to work.
 import { buildReqCertif, endpointFor } from './mev-protocol.js';
 
-const CFG = window.SIMPLEPOS_CONFIG || {};
+const CFG = window.RESTO360_CONFIG || {};
 const API = CFG.supabaseUrl ? `${CFG.supabaseUrl}/rest/v1` : '';
 const $ = (s) => document.querySelector(s);
 const DEVICE_ALIAS = 'mev-operator-key';
 
-function session() { try { return JSON.parse(localStorage.getItem('simplepos-session') || 'null'); } catch { return null; } }
+function session() { try { return JSON.parse(localStorage.getItem('resto360-session') || 'null'); } catch { return null; } }
 function escapeHtml(v = '') { return String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
 async function api(path, { method = 'GET', body, prefer = 'return=representation' } = {}) {
@@ -47,7 +47,7 @@ function fieldRow(id, label, value = '', placeholder = '') {
 async function render() {
   const host = $('#mevEnrollmentBody');
   if (!host) return;
-  const nativeReady = window.SimplePOSMev?.isAndroidNative?.() === true;
+  const nativeReady = window.Resto360Mev?.isAndroidNative?.() === true;
   const r = await restaurant();
   const cfg = (await getConfig(r.id)) || {};
   const device = (await getDevice(r.id)) || {};
@@ -58,7 +58,7 @@ async function render() {
     <div class="form-two">${fieldRow('mevAuthCode', "Code d'autorisation", cfg.authorization_code || '', 'X9X9-X9X9')}${fieldRow('mevOperatorId', "N° d'identification de l'exploitant", cfg.operator_identification_number || '')}</div>
     <div class="form-two">${fieldRow('mevIdPartn', 'IDPARTN', cfg.id_partn || '')}</div>
     <div class="form-two">${fieldRow('mevIdSev', 'IDSEV', cfg.id_sev || '')}${fieldRow('mevIdVersi', 'IDVERSI', cfg.id_versi || '')}</div>
-    <div class="form-two">${fieldRow('mevCodCertif', 'CODCERTIF', cfg.cod_certif || '', 'RBC000000000 en DEV avant certification')}${fieldRow('mevVersi', 'VERSI (version SimplePOS)', cfg.versi || '1.0')}</div>
+    <div class="form-two">${fieldRow('mevCodCertif', 'CODCERTIF', cfg.cod_certif || '', 'RBC000000000 en DEV avant certification')}${fieldRow('mevVersi', 'VERSI (version Resto360)', cfg.versi || '1.0')}</div>
     <div class="form-two">${fieldRow('mevVersiParn', 'VERSIPARN (version précédente)', cfg.versi_parn || '0', '0 si première certification')}</div>
     <button id="mevSaveConfig" class="btn">Enregistrer l'inscription</button>
     <hr>
@@ -94,15 +94,15 @@ async function render() {
   $('#mevGenerateCsr').onclick = async () => {
     const btn = $('#mevGenerateCsr'); btn.disabled = true; btn.textContent = 'Génération…';
     try {
-      await window.SimplePOSMev.generateKeyPair(DEVICE_ALIAS);
+      await window.Resto360Mev.generateKeyPair(DEVICE_ALIAS);
       const freshCfgForCsr = await getConfig(r.id);
       if (!freshCfgForCsr?.operator_identification_number) throw new Error("Enregistrez d'abord le numéro d'identification de l'exploitant");
-      const csr = await window.SimplePOSMev.createOperatorCsr({
+      const csr = await window.Resto360Mev.createOperatorCsr({
         alias: DEVICE_ALIAS,
         cn: freshCfgForCsr.operator_identification_number,
         o: `RBC-${$('#mevAuthCode').value.trim() || 'XXXX-XXXX'}`,
         ou: r.qst_number || '',
-        sn: `SimplePOS-${r.id.slice(0, 8)}`,
+        sn: `Resto360-${r.id.slice(0, 8)}`,
         gn: $('#mevDossier').value.trim() || '',
         l: '-05:00',
         s: 'QC',
@@ -119,7 +119,7 @@ async function render() {
   $('#mevSendCertif').onclick = async () => {
     const btn = $('#mevSendCertif'); btn.disabled = true; btn.textContent = 'Envoi…';
     try {
-      if (!window.SimplePOSMev?.isAndroidNative?.()) throw new Error('Envoi disponible seulement dans l’appli Android');
+      if (!window.Resto360Mev?.isAndroidNative?.()) throw new Error('Envoi disponible seulement dans l’appli Android');
       const freshCfg = await getConfig(r.id);
       const freshDevice = await getDevice(r.id);
       const modif = freshDevice.id_apprl ? 'REM' : 'AJO';
@@ -144,7 +144,7 @@ async function render() {
       const url = endpointFor('certificats', modif, headers.ENVIRN);
       // Envoyé directement depuis l'appareil (réseau natif Android), pas via une fonction
       // Supabase : confirmé en direct que le relais Deno perd l'en-tête IDVERSI en chemin.
-      const sent = await window.SimplePOSMev.sendRequest({ url, headers, body: JSON.stringify({ reqCertif }) });
+      const sent = await window.Resto360Mev.sendRequest({ url, headers, body: JSON.stringify({ reqCertif }) });
       const data = JSON.parse(sent.body || '{}');
       const ok = sent.status >= 200 && sent.status < 300;
       if (ok && data?.retourCertif?.idApprl) await upsertDevice(r.id, { id_apprl: data.retourCertif.idApprl, certificate_pem: data.retourCertif.certif || null, certificate_status: data.retourCertif.certif ? 'active' : 'pending', certificate_issued_at: data.retourCertif.certif ? new Date().toISOString() : null });

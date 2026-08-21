@@ -2,7 +2,7 @@
 
 ## Avant de tester
 
-- forcer le rechargement de la PWA après le déploiement du cache `simplepos-v18`;
+- forcer le rechargement de la PWA après le déploiement du cache `resto360-v18`;
 - utiliser le mode démo pour l’interface ou une imprimante reçu configurée pour le flux réel;
 - garder le mode MEV en simulation.
 

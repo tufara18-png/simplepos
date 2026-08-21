@@ -1,4 +1,4 @@
--- SimplePOS minimal Supabase schema
+-- Resto360 minimal Supabase schema
 -- Run in Supabase SQL editor or as a migration.
 
 create extension if not exists pgcrypto;

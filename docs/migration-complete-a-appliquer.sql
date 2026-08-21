@@ -1,4 +1,4 @@
--- SimplePOS — migration complète à appliquer dans le SQL Editor de Supabase.
+-- Resto360 — migration complète à appliquer dans le SQL Editor de Supabase.
 --
 -- Regroupe, dans l'ordre, les migrations 20260816_000017 à 20260817_000029.
 -- Tout s'exécute dans une seule transaction : en cas d'erreur, rien n'est
@@ -742,7 +742,7 @@ revoke insert on public.payments from authenticated, anon;
 -- 20260816_000024_credit_notes_and_void_order.sql
 -- ============================================================
 
--- Two documents the SW-76 requires that SimplePOS could not produce at all:
+-- Two documents the SW-76 requires that Resto360 could not produce at all:
 --   * the credit note (note de credit), a mandatory customer document;
 --   * a full order cancellation with its own receipt.
 -- Without a refund path, a disputed charge is settled out of the till with no
@@ -1070,7 +1070,7 @@ comment on column public.app_settings.seat_tracking_enabled is
 --
 -- This migration does NOT invent a Revenu Quebec request, signature or QR format.
 -- It creates an immutable internal ledger for every fiscal/customer document
--- produced by SimplePOS, gives each document a unique number per civil day,
+-- produced by Resto360, gives each document a unique number per civil day,
 -- preserves references, content and hashes, and makes retries idempotent.
 
 create table if not exists public.fiscal_document_counters (
@@ -1120,9 +1120,9 @@ create table if not exists public.fiscal_documents (
 );
 
 comment on table public.fiscal_documents is
-  'Immutable local ledger of documents produced by SimplePOS. Official MEV-WEB fields remain blocked until SW-73 is available.';
+  'Immutable local ledger of documents produced by Resto360. Official MEV-WEB fields remain blocked until SW-73 is available.';
 comment on column public.fiscal_documents.transaction_number is
-  'SimplePOS internal number unique per restaurant and Quebec civil day. It is not the number returned by Revenu Quebec.';
+  'Resto360 internal number unique per restaurant and Quebec civil day. It is not the number returned by Revenu Quebec.';
 comment on column public.fiscal_documents.local_reference is
   'Device-local idempotency and paper trace reference, explicitly non-official.';
 

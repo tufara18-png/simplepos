@@ -1,8 +1,8 @@
-# SimplePOS — viabilité PWA pour le MEV-WEB
+# Resto360 — viabilité PWA pour le MEV-WEB
 
 ## Décision
 
-Une PWA peut rester l'interface principale de SimplePOS et peut fonctionner sans publication dans l'App Store.
+Une PWA peut rester l'interface principale de Resto360 et peut fonctionner sans publication dans l'App Store.
 
 En revanche, une **PWA Safari seule** ne doit pas encore être considérée comme l'ensemble du SEV fiscal. Les trois points qui empêchent cette conclusion sont :
 
@@ -39,7 +39,7 @@ Le composant fiscal peut éventuellement être la PWA elle-même si le SW-73 et 
 
 Cette architecture ne nécessite pas l'App Store.
 
-## Diagnostic ajouté dans SimplePOS
+## Diagnostic ajouté dans Resto360
 
 Dans **Gestion → Appareil PWA et clé locale**, chaque iPad peut maintenant vérifier :
 

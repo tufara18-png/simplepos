@@ -1,4 +1,4 @@
-const CFG = window.SIMPLEPOS_CONFIG || {};
+const CFG = window.RESTO360_CONFIG || {};
 const API = `${CFG.supabaseUrl}/rest/v1`;
 const POLL_MS = 6000;
 let demoMode = false;
@@ -10,7 +10,7 @@ const $$ = s => [...document.querySelectorAll(s)];
 const money = n => Number(n || 0).toLocaleString('fr-CA',{style:'currency',currency:'CAD'});
 
 function toast(message,type='ok'){const el=$('#toast');if(!el)return;el.textContent=message;el.dataset.type=type;el.classList.add('show');clearTimeout(el._demoTimer);el._demoTimer=setTimeout(()=>el.classList.remove('show'),2600)}
-function session(){try{return JSON.parse(localStorage.getItem('simplepos-session')||'null')}catch{return null}}
+function session(){try{return JSON.parse(localStorage.getItem('resto360-session')||'null')}catch{return null}}
 function headers(){const s=session();return{apikey:CFG.supabasePublishableKey||'',Authorization:`Bearer ${s?.access_token||''}`,'Content-Type':'application/json'}}
 async function rest(path,{method='GET',body}={}){
   const s=session();
@@ -86,7 +86,7 @@ function ensureBanner(){
 // Single source of truth for "nothing here is real", read by the other modules.
 // Without it sw76-readiness would keep writing training documents into the
 // immutable fiscal ledger and burning the day's transaction numbers.
-function setBannerVisible(visible){window.SIMPLEPOS_DEMO=!!visible;ensureBanner().style.display=visible?'block':'none'}
+function setBannerVisible(visible){window.RESTO360_DEMO=!!visible;ensureBanner().style.display=visible?'block':'none'}
 
 async function currentRestaurantId(){
   if(restaurantId)return restaurantId;
@@ -203,7 +203,7 @@ function previewRenderPay(){
 }
 function previewRenderDashboard(){if($('#dashMetrics'))$('#dashMetrics').innerHTML=`<div class="metric"><span>Ventes</span><strong>${money(4826.35)}</strong></div><div class="metric"><span>Dépenses</span><strong>${money(3190.20)}</strong></div><div class="metric"><span>Résultat</span><strong>${money(1636.15)}</strong></div><div class="metric"><span>Ticket moyen</span><strong>${money(64.35)}</strong></div>`;if($('#coverageCard'))$('#coverageCard').innerHTML='<div><span class="eyebrow">Mode démo</span><h2>Données fictives</h2><p class="muted">Aucune incidence comptable ou fiscale.</p></div>';if($('#popularProducts'))$('#popularProducts').innerHTML='<div class="biz-row"><div><strong>Burger classique</strong><span>41 vendus</span></div></div>';if($('#expenseHighlights'))$('#expenseHighlights').innerHTML='<div class="biz-row"><div><strong>Loyer</strong><span>2 100 $</span></div></div>';if($('#quickStats'))$('#quickStats').innerHTML='<div class="biz-row"><div><strong>75 transactions</strong><span>32 clients connus</span></div></div>'}
 function previewRenderReservations(){if($('#reservationList'))$('#reservationList').innerHTML='<div class="biz-row"><div><strong>18:30 · Marie Tremblay</strong><span>4 personnes · Table 3</span></div><strong>Confirmée</strong></div><div class="biz-row"><div><strong>19:15 · Alex Roy</strong><span>2 personnes · À assigner</span></div><strong>Confirmée</strong></div>';if($('#reservationTodaySummary'))$('#reservationTodaySummary').innerHTML='<div><span>Réservations</span><strong>7</strong></div><div><span>Couverts</span><strong>22</strong></div>'}
-function enterPreviewMode(){previewMode=true;demoMode=true;window.SIMPLEPOS_DEMO=true;document.body.classList.add('preview-demo');$('#authScreen')?.classList.add('hidden');$('#app')?.classList.remove('hidden');if($('#restaurantName'))$('#restaurantName').textContent='Bistro Démo';if($('#connectionLabel'))$('#connectionLabel').textContent='Mode démo local';setBannerVisible(true);ensureBanner().textContent='MODE DÉMO LOCAL — aucun compte, aucune écriture Supabase, aucun paiement ou envoi MEV réel';previewRenderTables();previewRenderDashboard();previewRenderReservations();previewShow('tablesScreen')}
+function enterPreviewMode(){previewMode=true;demoMode=true;window.RESTO360_DEMO=true;document.body.classList.add('preview-demo');$('#authScreen')?.classList.add('hidden');$('#app')?.classList.remove('hidden');if($('#restaurantName'))$('#restaurantName').textContent='Bistro Démo';if($('#connectionLabel'))$('#connectionLabel').textContent='Mode démo local';setBannerVisible(true);ensureBanner().textContent='MODE DÉMO LOCAL — aucun compte, aucune écriture Supabase, aucun paiement ou envoi MEV réel';previewRenderTables();previewRenderDashboard();previewRenderReservations();previewShow('tablesScreen')}
 function addPreLoginButton(){const form=$('#authForm');if(!form||$('#demoPreviewBtn'))return;const b=document.createElement('button');b.type='button';b.id='demoPreviewBtn';b.className='btn demo-entry full';b.textContent='Essayer le mode démo';b.onclick=enterPreviewMode;const err=$('#authError');form.insertBefore(b,err);const note=document.createElement('p');note.className='demo-entry-note';note.textContent='Aucun compte requis · données fictives · rien n’est envoyé';form.insertBefore(note,err)}
 function previewClick(e){if(!previewMode)return;const target=e.target.closest('button,[data-preview-move]');if(!target)return;
   const nav=e.target.closest('[data-nav]');if(nav){e.preventDefault();e.stopImmediatePropagation();const id=nav.dataset.nav;if(id==='tablesScreen')previewRenderTables();if(id==='orderScreen')previewRenderOrder();if(id==='payScreen')previewRenderPay();if(id==='dashboardScreen')previewRenderDashboard();if(id==='reservationsScreen')previewRenderReservations();previewShow(id);return}

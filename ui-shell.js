@@ -16,5 +16,5 @@ Promise.all([
   .then(()=>import('/sw76-readiness.js'))
   .then(()=>import('/pwa-device-readiness.js'))
   .then(()=>import('/mev-enrollment.js'))
-  .catch(err=>console.error('SimplePOS extension unavailable',err));
+  .catch(err=>console.error('Resto360 extension unavailable',err));
 window.addEventListener('DOMContentLoaded',()=>{wireNavigation();wirePaymentPanels();wireManagement();wireClock();addSectionFallback()});

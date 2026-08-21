@@ -10,11 +10,11 @@
 import { buildReqTrans, buildTransactionSignatureInput, buildHeaders, buildSignatureInput, endpointFor, interpretCodRetour } from './mev-protocol.js';
 import { enqueueSignedTransaction, effectivePreced, flushQueue, queueLength } from './mev-offline-queue.js';
 
-const CFG = window.SIMPLEPOS_CONFIG || {};
+const CFG = window.RESTO360_CONFIG || {};
 const API = CFG.supabaseUrl ? `${CFG.supabaseUrl}/rest/v1` : '';
 const DEVICE_ALIAS = 'mev-operator-key';
 
-function session() { try { return JSON.parse(localStorage.getItem('simplepos-session') || 'null'); } catch { return null; } }
+function session() { try { return JSON.parse(localStorage.getItem('resto360-session') || 'null'); } catch { return null; } }
 async function api(path, { method = 'GET', body, prefer = 'return=representation' } = {}) {
   const s = session();
   if (!API || !s?.access_token) throw new Error('Non connecté');
@@ -47,7 +47,7 @@ function notAvailable(reason) {
  * so wiring this in does not require reshaping the caller.
  */
 export async function submitMevTransaction({ restaurant, invoice, invoiceItems, paymentMethod, tableLabel, guestCount }) {
-  if (!window.SimplePOSMev?.isAndroidNative?.()) return notAvailable('Transmission réelle disponible seulement dans l’appli Android.');
+  if (!window.Resto360Mev?.isAndroidNative?.()) return notAvailable('Transmission réelle disponible seulement dans l’appli Android.');
 
   const { device, partnerConfig } = await loadDeviceAndConfig(restaurant.id);
   if (!device?.id_apprl || device.certificate_status !== 'active') return notAvailable('Aucun certificat MEV actif -- complétez l’enrôlement dans Réglages.');
@@ -91,7 +91,7 @@ export async function submitMevTransaction({ restaurant, invoice, invoiceItems, 
   const transActu = reqTrans.transActu;
 
   const signInput = buildTransactionSignatureInput(transActu);
-  const signed = await window.SimplePOSMev.sign(DEVICE_ALIAS, signInput);
+  const signed = await window.Resto360Mev.sign(DEVICE_ALIAS, signInput);
   transActu.signa.actu = signed.signatureBase64;
 
   const headers = buildHeaders({ environment: partnerConfig.environment || 'DEV', device, partnerConfig: effectivePartnerConfig });
@@ -110,13 +110,13 @@ export async function submitMevTransaction({ restaurant, invoice, invoiceItems, 
   }
 
   const headerSignInput = buildSignatureInput({ authorizationCode: partnerConfig.authorization_code, idApprl: device.id_apprl, transactionSignatures: [transActu.signa.actu] });
-  const headerSigned = await window.SimplePOSMev.sign(DEVICE_ALIAS, headerSignInput);
+  const headerSigned = await window.Resto360Mev.sign(DEVICE_ALIAS, headerSignInput);
   headers.SIGNATRANSM = headerSigned.signatureBase64;
   headers.EMPRCERTIFTRANSM = device.certificate_thumbprint_sha1;
 
   let response;
   try {
-    response = await window.SimplePOSMev.sendRequest({ url, headers, body: JSON.stringify({ reqTrans: { transActu } }), keyAlias: DEVICE_ALIAS, certificatePem: device.certificate_pem });
+    response = await window.Resto360Mev.sendRequest({ url, headers, body: JSON.stringify({ reqTrans: { transActu } }), keyAlias: DEVICE_ALIAS, certificatePem: device.certificate_pem });
   } catch (networkError) {
     // navigator.onLine said "online" but the request itself failed (captive portal, DNS
     // blip, etc.) -- same treatment as the explicit offline path above, not a rejection.
@@ -158,7 +158,7 @@ export async function submitMevTransaction({ restaurant, invoice, invoiceItems, 
  * mev_devices.last_transaction_signature only if Revenu Québec accepts it.
  */
 export async function flushMevQueue(restaurant) {
-  if (!window.SimplePOSMev?.isAndroidNative?.() || !navigator.onLine) return { sent: 0 };
+  if (!window.Resto360Mev?.isAndroidNative?.() || !navigator.onLine) return { sent: 0 };
   const { device, partnerConfig } = await loadDeviceAndConfig(restaurant.id);
   if (!device?.id || !partnerConfig) return { sent: 0 };
   if ((await queueLength(device.id)) === 0) return { sent: 0 };
@@ -175,7 +175,7 @@ export async function flushMevQueue(restaurant) {
     url,
     keyAlias: DEVICE_ALIAS,
     certificatePem: device.certificate_pem,
-    signHeader: async (text) => (await window.SimplePOSMev.sign(DEVICE_ALIAS, text)).signatureBase64,
+    signHeader: async (text) => (await window.Resto360Mev.sign(DEVICE_ALIAS, text)).signatureBase64,
   });
   if (result.sent > 0 && result.lastSignature) {
     await api(`mev_devices?id=eq.${device.id}`, { method: 'PATCH', prefer: 'return=minimal', body: { last_transaction_signature: result.lastSignature, updated_at: new Date().toISOString() } });

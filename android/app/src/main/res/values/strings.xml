@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">SimplePOS</string>
-    <string name="title_activity_main">SimplePOS</string>
-    <string name="package_name">ca.simplepos.app</string>
-    <string name="custom_url_scheme">ca.simplepos.app</string>
+    <string name="app_name">Resto360</string>
+    <string name="title_activity_main">Resto360</string>
+    <string name="package_name">ca.resto360.app</string>
+    <string name="custom_url_scheme">ca.resto360.app</string>
 </resources>

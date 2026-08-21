@@ -1,4 +1,4 @@
-# SimplePOS PWA — offline + impression sans App Store
+# Resto360 PWA — offline + impression sans App Store
 
 ## Architecture
 
@@ -7,7 +7,7 @@ iPad / PWA
   ├─ Cache Storage : application
   ├─ IndexedDB : snapshots + outbox persistante
   ├─ Supabase : synchronisation quand Internet fonctionne
-  └─ HTTPS LAN : SimplePOS Print Bridge
+  └─ HTTPS LAN : Resto360 Print Bridge
                    ├─ TCP 9100 -> cuisine
                    └─ TCP 9100 -> reçu
 ```
@@ -79,7 +79,7 @@ Exemple :
 https://bridge.restaurant.example:8787
 ```
 
-Puis dans SimplePOS :
+Puis dans Resto360 :
 
 ```text
 Réglages
@@ -92,7 +92,7 @@ Réglages
 
 Avant utilisation réelle :
 
-1. Charger SimplePOS une fois avec Internet et vérifier `cache prêt`.
+1. Charger Resto360 une fois avec Internet et vérifier `cache prêt`.
 2. Configurer le bridge et les deux IP d’imprimantes.
 3. Imprimer cuisine et reçu.
 4. Couper Internet/WAN mais garder le Wi-Fi LAN.

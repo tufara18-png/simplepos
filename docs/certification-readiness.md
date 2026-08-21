@@ -1,4 +1,4 @@
-# SimplePOS — préparation certification MEV-WEB
+# Resto360 — préparation certification MEV-WEB
 
 ## Déjà implémenté
 
@@ -37,13 +37,13 @@
 
 **Sous-déclaration par paiement partiel.** Un encaissement peut être inférieur au solde, c'est un paiement partiel légitime. La commande reste alors ouverte avec son solde impayé, elle ne disparaît pas. Pour l'escamoter il faut ensuite annuler le reste, ce qui écrit une entrée `order_voided` dans `fiscal_events` avec le motif et les articles. C'est donc traçable plutôt que bloqué, ce qui est le compromis normal : un vrai départ sans paiement doit rester possible.
 
-**Noms des comptes employés.** La validation d'alphabet est appliquée aux articles du menu, pas encore aux noms d'utilisateurs (SimplePOS n'a pas d'écran de gestion du personnel pour l'instant).
+**Noms des comptes employés.** La validation d'alphabet est appliquée aux articles du menu, pas encore aux noms d'utilisateurs (Resto360 n'a pas d'écran de gestion du personnel pour l'instant).
 
 **Remboursement partiel.** `create_credit_note()` rembourse la facture au complet. Un remboursement partiel (un seul plat sur une facture de quatre) demanderait de choisir les lignes à créditer.
 
 ## Ce que le SW-76 (guide public) exige concrètement
 
-Le SW-76 (*Renseignements généraux sur l'adaptation des SEV*, version 2025-06) est public, contrairement au SW-73 (le guide technique détaillé avec le format JSON exact) qui est réservé aux partenaires inscrits. Points qui touchent directement le code de SimplePOS :
+Le SW-76 (*Renseignements généraux sur l'adaptation des SEV*, version 2025-06) est public, contrairement au SW-73 (le guide technique détaillé avec le format JSON exact) qui est réservé aux partenaires inscrits. Points qui touchent directement le code de Resto360 :
 
 - un « serveur distant » (notre `mev-gateway`) ne peut ni créer, ni modifier, ni supprimer de transactions, seulement les acheminer au MEV-WEB, notre architecture actuelle respecte déjà cette contrainte;
 - numéro de transaction unique par jour civil (notre numérotation par restaurant, jamais réutilisée, satisfait déjà cette exigence);
@@ -82,7 +82,7 @@ Réglages → Mode démo : simule l'impression à l'écran (le contenu du reçu 
 
 Ces éléments ne doivent pas être inventés dans le code. Ils seront branchés dans `mev-gateway` lorsque Revenu Québec les fournira :
 
-1. inscription comme partenaire et enregistrement du produit SimplePOS;
+1. inscription comme partenaire et enregistrement du produit Resto360;
 2. guide de démarche de certification SW-79 et documents techniques applicables;
 3. caractéristiques/cas d'essai attribués au produit;
 4. paramètres exacts du protocole MEV-WEB;

@@ -1,4 +1,4 @@
-# SimplePOS MEV architecture
+# Resto360 MEV architecture
 
 This layer is intentionally independent from the POS UI.
 

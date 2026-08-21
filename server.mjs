@@ -15,17 +15,17 @@ const ALLOW_PUBLIC_PRINTER_IPS=process.env.ALLOW_PUBLIC_PRINTER_IPS==='1';
 const VERSION='1.0.0';
 const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.webmanifest':'application/manifest+json'};
 
-function cors(){return{'access-control-allow-origin':ALLOWED_ORIGIN,'access-control-allow-headers':'content-type,x-simplepos-token','access-control-allow-methods':'GET,POST,OPTIONS','cache-control':'no-store'}}
+function cors(){return{'access-control-allow-origin':ALLOWED_ORIGIN,'access-control-allow-headers':'content-type,x-resto360-token','access-control-allow-methods':'GET,POST,OPTIONS','cache-control':'no-store'}}
 function json(res,code,obj){res.writeHead(code,{'content-type':'application/json',...cors()});res.end(JSON.stringify(obj))}
 function readBody(req){return new Promise((resolve,reject)=>{let b='';req.on('data',d=>{b+=d;if(b.length>1024*1024){reject(new Error('payload too large'));req.destroy()}});req.on('end',()=>{try{resolve(b?JSON.parse(b):{})}catch(e){reject(e)}});req.on('error',reject)})}
-function authorized(req){return !BRIDGE_TOKEN||req.headers['x-simplepos-token']===BRIDGE_TOKEN}
+function authorized(req){return !BRIDGE_TOKEN||req.headers['x-resto360-token']===BRIDGE_TOKEN}
 function isPrivateIp(ip){if(ALLOW_PUBLIC_PRINTER_IPS)return true;if(net.isIP(ip)===4){const p=ip.split('.').map(Number);return p[0]===10||(p[0]===172&&p[1]>=16&&p[1]<=31)||(p[0]===192&&p[1]===168)||p[0]===127}if(net.isIP(ip)===6)return ip==='::1'||ip.toLowerCase().startsWith('fc')||ip.toLowerCase().startsWith('fd')||ip.toLowerCase().startsWith('fe80:');return false}
 function escpos(text,cut=true){const init=Buffer.from([0x1b,0x40]);const body=Buffer.from(text+'\n','utf8');const feed=Buffer.from([0x1b,0x64,0x04]);const cutter=cut?Buffer.from([0x1d,0x56,0x00]):Buffer.alloc(0);return Buffer.concat([init,body,feed,cutter])}
 function tcpPrint(ip,port,data){return new Promise((resolve,reject)=>{let settled=false;const done=err=>{if(settled)return;settled=true;err?reject(err):resolve()};const s=net.createConnection({host:ip,port,timeout:5000},()=>{s.write(data,err=>{if(err)return done(err);s.end()})});s.on('close',hadError=>{if(!hadError)done()});s.on('timeout',()=>s.destroy(new Error('timeout')));s.on('error',done)})}
 
 async function handler(req,res){try{
   if(req.method==='OPTIONS'){res.writeHead(204,cors());return res.end()}
-  if(req.url==='/health'&&req.method==='GET'){if(!authorized(req))return json(res,401,{error:'unauthorized'});return json(res,200,{ok:true,service:'SimplePOS Print Bridge',version:VERSION,https:!!(TLS_CERT&&TLS_KEY),time:new Date().toISOString()})}
+  if(req.url==='/health'&&req.method==='GET'){if(!authorized(req))return json(res,401,{error:'unauthorized'});return json(res,200,{ok:true,service:'Resto360 Print Bridge',version:VERSION,https:!!(TLS_CERT&&TLS_KEY),time:new Date().toISOString()})}
   if(req.method==='POST'&&req.url==='/print'){
     if(!authorized(req))return json(res,401,{error:'unauthorized'});
     const b=await readBody(req);const ip=String(b.ip||'');const port=Number(b.port||9100);
@@ -43,4 +43,4 @@ async function handler(req,res){try{
 const useTls=TLS_CERT&&TLS_KEY;
 const server=useTls?https.createServer({cert:fs.readFileSync(TLS_CERT),key:fs.readFileSync(TLS_KEY)},handler):http.createServer(handler);
 if(!BRIDGE_TOKEN)console.warn('AVERTISSEMENT: BRIDGE_TOKEN non défini — tout appareil sur le réseau local peut envoyer des commandes au bridge. Définir BRIDGE_TOKEN avant un déploiement en restaurant.');
-server.listen(PORT,'0.0.0.0',()=>console.log(`SimplePOS bridge: ${useTls?'https':'http'}://0.0.0.0:${PORT}`));
+server.listen(PORT,'0.0.0.0',()=>console.log(`Resto360 bridge: ${useTls?'https':'http'}://0.0.0.0:${PORT}`));

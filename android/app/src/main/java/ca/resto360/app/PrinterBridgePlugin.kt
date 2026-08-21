@@ -1,4 +1,4 @@
-package ca.simplepos.app
+package ca.resto360.app
 
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
@@ -11,7 +11,7 @@ import java.net.Socket
 
 /**
  * Direct LAN printing from the app itself. Android (unlike Safari/WKWebView) can open a raw
- * TCP socket, so on this platform SimplePOS does not need the local server.mjs print bridge --
+ * TCP socket, so on this platform Resto360 does not need the local server.mjs print bridge --
  * this plugin replicates its exact ESC/POS framing so a receipt looks identical printed via
  * either path.
  *

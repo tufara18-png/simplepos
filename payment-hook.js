@@ -12,8 +12,8 @@ function toast(message,type='ok'){
 }
 
 async function getReceiptPrinter(){
-  const cfg=window.SIMPLEPOS_CONFIG||{};
-  const session=JSON.parse(localStorage.getItem('simplepos-session')||'null');
+  const cfg=window.RESTO360_CONFIG||{};
+  const session=JSON.parse(localStorage.getItem('resto360-session')||'null');
   if(!cfg.supabaseUrl||!cfg.supabasePublishableKey||!session?.access_token)return null;
   const r=await fetch(`${cfg.supabaseUrl}/rest/v1/printers?role=eq.receipt&enabled=eq.true&select=ip_address,port&limit=1`,{
     headers:{apikey:cfg.supabasePublishableKey,Authorization:`Bearer ${session.access_token}`}
@@ -24,8 +24,8 @@ async function getReceiptPrinter(){
 }
 
 async function getCompanyInfo(){
-  const cfg=window.SIMPLEPOS_CONFIG||{};
-  const session=JSON.parse(localStorage.getItem('simplepos-session')||'null');
+  const cfg=window.RESTO360_CONFIG||{};
+  const session=JSON.parse(localStorage.getItem('resto360-session')||'null');
   if(!cfg.supabaseUrl||!cfg.supabasePublishableKey||!session?.access_token)return null;
   const r=await fetch(`${cfg.supabaseUrl}/rest/v1/restaurants?select=name,legal_name,address,city,postal_code,phone,gst_number,qst_number&order=created_at.asc&limit=1`,{
     headers:{apikey:cfg.supabasePublishableKey,Authorization:`Bearer ${session.access_token}`}
@@ -58,7 +58,7 @@ function buildTicket(company){
 async function printCurrentTicket(){
   // app-v2 owns the FACTURE ORIGINALE / FACTURE REVISEE counter, so prefer its
   // implementation and only fall back to the DOM-scraped ticket if it is absent.
-  if(typeof window.SimplePOSPrintAddition==='function'){await window.SimplePOSPrintAddition();return}
+  if(typeof window.Resto360PrintAddition==='function'){await window.Resto360PrintAddition();return}
   const printer=await getReceiptPrinter();
   if(!printer?.ip_address)throw new Error('Configure l’imprimante reçu dans Réglages');
   const company=await getCompanyInfo();

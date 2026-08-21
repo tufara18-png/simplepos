@@ -1,4 +1,4 @@
-// Thin wrapper around the Android MevKeystore plugin (see android/app/src/main/java/ca/simplepos/app/MevKeystorePlugin.kt).
+// Thin wrapper around the Android MevKeystore plugin (see android/app/src/main/java/ca/resto360/app/MevKeystorePlugin.kt).
 // No enrolment screen calls this yet — the real "certificats" request to Revenu Québec still
 // needs the partner authorization code, dossier number and JSON envelope work first. This is
 // wired in now so that screen has something to call instead of inventing crypto in JS.
@@ -16,7 +16,7 @@ function unavailable() {
   return Promise.reject(new Error('Module de certificat MEV disponible seulement dans l’appli Android'));
 }
 
-window.SimplePOSMev = {
+window.Resto360Mev = {
   isAndroidNative: () => !!mevPlugin(),
 
   hasKey(alias) {

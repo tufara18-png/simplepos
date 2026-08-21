@@ -60,9 +60,9 @@ export function validateSevText(value, { min = 1, max = 4000 } = {}) {
 
 /**
  * Tax indicator for an item ("F" federal only, "P" provincial only, "S" a supplementary tax,
- * combinations like "FP", or "NON"/"SOB"). SimplePOS currently only ever charges both GST and
+ * combinations like "FP", or "NON"/"SOB"). Resto360 currently only ever charges both GST and
  * QST together or neither, so this only ever produces "FP" or "NON" -- the other combinations
- * exist in the spec for sectors/situations SimplePOS does not have yet.
+ * exist in the spec for sectors/situations Resto360 does not have yet.
  */
 export function taxIndicator({ gstApplies = true, qstApplies = true } = {}) {
   if (!gstApplies && !qstApplies) return 'NON';
@@ -70,9 +70,9 @@ export function taxIndicator({ gstApplies = true, qstApplies = true } = {}) {
 }
 
 /**
- * Builds the "items" array for a reqTrans body from SimplePOS invoice_items rows.
+ * Builds the "items" array for a reqTrans body from Resto360 invoice_items rows.
  * `unitr` is only included when a per-unit price actually applies (SW-73: if present, prix
- * must equal qte * unitr) -- SimplePOS sells at a flat line price, so it is omitted rather
+ * must equal qte * unitr) -- Resto360 sells at a flat line price, so it is omitted rather
  * than back-computed and risk being wrong.
  */
 export function buildItems(invoiceItems) {
@@ -84,14 +84,14 @@ export function buildItems(invoiceItems) {
     // Confirmed live against Revenu Québec's real DEV transaction endpoint (2026-08-21):
     // "acti" is mandatory per item, not optional as it first read. "NON" is the RBC-sector
     // value for an ordinary sale -- the other codes (CDR/RES/BAR/HAB/SOB) are for cancellation,
-    // reservation deposit, bar tab and habitual-third-party cases SimplePOS does not have yet.
+    // reservation deposit, bar tab and habitual-third-party cases Resto360 does not have yet.
     acti: 'NON',
   }));
 }
 
 /**
  * The "mont" (montants) block. `ajus` is only meaningful when the declared total differs from
- * the strict sum of taxes and subtotal by a rounding adjustment SimplePOS already tracks
+ * the strict sum of taxes and subtotal by a rounding adjustment Resto360 already tracks
  * elsewhere as `roundingAdjustment` -- pass 0 when there is none, never invent a value.
  */
 export function buildMont({ subtotal, gst, qst, total, roundingAdjustment = 0, amountDue = null, tip = 0 }) {
@@ -109,7 +109,7 @@ export function buildMont({ subtotal, gst, qst, total, roundingAdjustment = 0, a
 
 const PAYMENT_METHOD_CODE = {
   cash: 'ARG',
-  card: 'CRE', // SimplePOS does not distinguish credit/debit terminals yet; DEB exists for when it does.
+  card: 'CRE', // Resto360 does not distinguish credit/debit terminals yet; DEB exists for when it does.
   other: 'AUT',
   left_without_paying: 'SOB',
 };
@@ -125,7 +125,7 @@ const DOCUMENT_TYPE_MOD_IMPR = {
 };
 
 // typTrans: "ADDI"|"ESTM"|"RFER"|"SOUM"|"TIER"|"SOB". Confirmed live that "RFER" (reçu de
-// fermeture) is correct for a paid closing receipt -- SimplePOS's other document types map to
+// fermeture) is correct for a paid closing receipt -- Resto360's other document types map to
 // their SW-73 counterparts by name; "addition" (before payment) is genuinely "ADDI", not RFER.
 const DOCUMENT_TYPE_TYP_TRANS = {
   addition: 'ADDI',
@@ -174,7 +174,7 @@ export function buildReqTrans({
     datTrans: datTrans(invoice.created_at || Date.now()),
     // Confirmed live (2026-08-21) that "utc" is mandatory, not optional, and the format is
     // "-05:00A" for continental Quebec ("-04:00" applies only to Îles-de-la-Madeleine, which
-    // SimplePOS has no restaurant in yet). Hardcoded rather than derived from the device's own
+    // Resto360 has no restaurant in yet). Hardcoded rather than derived from the device's own
     // timezone, since a device set to the wrong local timezone must not silently produce the
     // wrong regulatory field.
     utc: '-05:00A',
