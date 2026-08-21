@@ -1,16 +1,22 @@
 // Real MEV-WEB request builders, per the SW-73 family now available to this partner.
 //
-// CONFIDENCE NOTE (read before touching buildReqTrans): the header fields, "certificats"
-// request/response shape, the signature concatenation (Tableau 22) and the codRetour scheme
-// are drawn from clean, unambiguous tables in SW-73/SW-73.A/SW-73.D and are implemented here
-// with high confidence. The internal nesting of a few "transaction" body fields (typTrans,
-// modPai/modImpr/formImpr/modTrans, signa, refs, emprCertifSEV, SEV -- whether they sit beside
-// "transActu" or one level inside it) comes from a table in SW-73 whose OCR conversion badly
-// scrambled row order. Field NAMES are confirmed by repetition across SW-73/SW-73.D/SW-73.C;
-// the exact NESTING below is this module's best reconstruction, not a transcription. Verify
-// it against a real "certificats"-then-"transaction" round trip in the DEV environment before
-// this is ever used for a live cas d'essai -- do not assume it is correct just because it
-// matches this repo's other guesses.
+// VERIFIED LIVE (2026-08-21): a "certificats" AJO enrolment followed by a "transaction" RFER
+// (reçu de fermeture) built by these exact functions were both sent to Revenu Québec's real
+// DEV environment (mTLS with the certificate the first call returned) and both came back
+// accepted (HTTP 201, then HTTP 200 with a real psiNoTrans). This is not a guess anymore for
+// the fields exercised by that round trip: sectActi, items[].{qte,descr,prix,tax,acti}, mont,
+// noDossFO, noTax, commerElectr, typTrans/modPai/modImpr/formImpr/modTrans, signa (both the
+// header SIGNATRANSM and the body's own signa.actu, which use different, confirmed
+// concatenations -- see buildSignatureInput vs buildTransactionSignatureInput), emprCertifSEV,
+// SEV, utc. Three real bugs this exposed and fixed: "utc" and item "acti" are mandatory, not
+// optional as the spec's prose reads at a skim, and the reqTrans-level "noTax"/"noDossFO"
+// fields were missing entirely from an earlier pass.
+//
+// Not yet exercised by that round trip, so still lower-confidence: refs (correction/credit-note
+// references), transLot (offline batching), docAdr, clint, and the tip/versement (pourb/versActu
+// etc.) fields in mont -- the test transaction was a single-item cash sale with no tip, no
+// table, no batch and no correction. Re-verify each of those against DEV before relying on them
+// for a real cas d'essai.
 //
 // This module builds JSON. It does not send anything anywhere and it does not know about
 // Supabase, fetch, or the DOM, so it can be unit-tested with plain sample data (see tests.mjs).
@@ -70,6 +76,11 @@ export function buildItems(invoiceItems) {
     descr: String(line.name || 'Article'),
     prix: money(line.line_total),
     tax: taxIndicator({ gstApplies: true, qstApplies: true }),
+    // Confirmed live against Revenu Québec's real DEV transaction endpoint (2026-08-21):
+    // "acti" is mandatory per item, not optional as it first read. "NON" is the RBC-sector
+    // value for an ordinary sale -- the other codes (CDR/RES/BAR/HAB/SOB) are for cancellation,
+    // reservation deposit, bar tab and habitual-third-party cases SimplePOS does not have yet.
+    acti: 'NON',
   }));
 }
 
@@ -108,6 +119,16 @@ const DOCUMENT_TYPE_MOD_IMPR = {
   reproduction: 'RPR',
 };
 
+// typTrans: "ADDI"|"ESTM"|"RFER"|"SOUM"|"TIER"|"SOB". Confirmed live that "RFER" (reçu de
+// fermeture) is correct for a paid closing receipt -- SimplePOS's other document types map to
+// their SW-73 counterparts by name; "addition" (before payment) is genuinely "ADDI", not RFER.
+const DOCUMENT_TYPE_TYP_TRANS = {
+  addition: 'ADDI',
+  closing_receipt: 'RFER',
+  credit_note: 'RFER',
+  correction: 'RFER',
+};
+
 /**
  * Full reqTrans envelope for one transaction. `signaturePreviousBase88` must be "=" * 88 for
  * this device's very first transaction (SW-73 footnote 3), and the real IEEE P1363 signature
@@ -138,6 +159,12 @@ export function buildReqTrans({
     nomUtil: String(invoice.user_name || restaurant.name || '').slice(0, 64),
     relaCommer: 'B2C',
     datTrans: datTrans(invoice.created_at || Date.now()),
+    // Confirmed live (2026-08-21) that "utc" is mandatory, not optional, and the format is
+    // "-05:00A" for continental Quebec ("-04:00" applies only to Îles-de-la-Madeleine, which
+    // SimplePOS has no restaurant in yet). Hardcoded rather than derived from the device's own
+    // timezone, since a device set to the wrong local timezone must not silently produce the
+    // wrong regulatory field.
+    utc: '-05:00A',
     items: buildItems(invoiceItems),
     mont: buildMont({
       subtotal: invoice.subtotal,
@@ -146,15 +173,22 @@ export function buildReqTrans({
       total: invoice.total,
       tip: invoice.tip_amount,
     }),
+    // Confirmed live (2026-08-21) that noDossFO/noTax are mandatory -- an earlier pass had
+    // both missing entirely, and the request was rejected until they were added.
+    noDossFO: partnerConfig.dossier_number,
+    noTax: { noTPS: partnerConfig.no_tps, noTVQ: partnerConfig.no_tvq },
+    commerElectr: 'N',
+    typTrans: DOCUMENT_TYPE_TYP_TRANS[documentType] || 'ADDI',
     modPai: PAYMENT_METHOD_CODE[paymentMethod] || 'AUT',
     modImpr: DOCUMENT_TYPE_MOD_IMPR[documentType] || 'FAC',
     formImpr: 'PAP',
     modTrans: 'OPE',
     signa: {
       datActu: datTrans(Date.now()),
-      // `actu` (this transaction's own signature) is filled in by the caller after this JSON
-      // is stringified, signed, and the signature is spliced back in -- a transaction cannot
-      // sign a hash of itself including its own signature field.
+      // `actu` (this transaction's own signature) is filled in by the caller after building
+      // this object -- use buildTransactionSignatureInput(transActu) below, sign that string
+      // (SHA-256 + ECDSA P-256 + IEEE P1363, same as the header signature), then set `actu` to
+      // the result before this envelope is sent. Confirmed live against the real DEV endpoint.
       actu: null,
       preced: signaturePreviousBase88 || '='.repeat(88),
     },
@@ -175,6 +209,17 @@ export function buildReqTrans({
   const body = { reqTrans: { transActu } };
   if (offlineBatch.length) body.reqTrans.transLot = offlineBatch;
   return body;
+}
+
+/**
+ * The exact text to sign for a transaction's own body signature (signa.actu), confirmed live
+ * against Revenu Québec's real DEV transaction endpoint (2026-08-21) and matching SW-73.C's
+ * reference implementation verbatim (Demo.cs "strConcateneePourSignature"). Call this with the
+ * transActu object BEFORE signa.actu is set (it is not part of the signed text), sign the
+ * result (SHA-256 + ECDSA P-256 + IEEE P1363), then set transActu.signa.actu to that signature.
+ */
+export function buildTransactionSignatureInput(transActu) {
+  return `${transActu.noTrans}${transActu.datTrans}${transActu.mont.TPS}${transActu.mont.TVQ}${transActu.mont.apresTax}${transActu.noTax.noTPS}${transActu.noTax.noTVQ}${transActu.modImpr}${transActu.modTrans}${transActu.signa.preced}`;
 }
 
 /**

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {buildItems,buildMont,taxIndicator,interpretCodRetour,buildSignatureInput,buildReqCertif,validateSevText} from './mev-protocol.js';
+import {buildItems,buildMont,taxIndicator,interpretCodRetour,buildSignatureInput,buildTransactionSignatureInput,buildReqCertif,validateSevText} from './mev-protocol.js';
 
 function round2(n){return Math.round((Number(n)+Number.EPSILON)*100)/100}
 function calcTax(sub){const gst=round2(sub*0.05),qst=round2(sub*0.09975);return {gst,qst,total:round2(sub+gst+qst)}}
@@ -94,7 +94,13 @@ assert.equal(pwaCapability({standalone:false,persisted:true,cryptoVerified:true,
 // SW-76 4.4.1 (Michel Untel enr., 1 item at 4,80 $, TPS 0,24 $, TVQ 0,48 $, total 5,52 $).
 assert.deepEqual(taxIndicator({gstApplies:true,qstApplies:true}),'FP');
 assert.deepEqual(taxIndicator({gstApplies:false,qstApplies:false}),'NON');
-assert.deepEqual(buildItems([{name:'Article 1',quantity:1,line_total:4.80}]),[{qte:'+00001.00',descr:'Article 1',prix:'+000000004.80',tax:'FP'}]);
+assert.deepEqual(buildItems([{name:'Article 1',quantity:1,line_total:4.80}]),[{qte:'+00001.00',descr:'Article 1',prix:'+000000004.80',tax:'FP',acti:'NON'}]);
+// Locks in the exact concatenation confirmed live against Revenu Québec's real DEV
+// transaction endpoint (2026-08-21, T0000002 / psiNoTrans 066J-03VQ-00RT-05T2, HTTP 200).
+assert.equal(
+  buildTransactionSignatureInput({noTrans:'T0000002',datTrans:'20260821164439',mont:{TPS:'+00000000.24',TVQ:'+00000000.48',apresTax:'+00000005.52'},noTax:{noTPS:'567891234RT0001',noTVQ:'5678912340TQ0001'},modImpr:'FAC',modTrans:'OPE',signa:{preced:'='.repeat(88)}}),
+  'T0000002'+'20260821164439'+'+00000000.24'+'+00000000.48'+'+00000005.52'+'567891234RT0001'+'5678912340TQ0001'+'FAC'+'OPE'+'='.repeat(88)
+);
 const mont=buildMont({subtotal:4.80,gst:0.24,qst:0.48,total:5.52});
 assert.equal(mont.avantTax,'+000000004.80');
 assert.equal(mont.TPS,'+000000000.24');
