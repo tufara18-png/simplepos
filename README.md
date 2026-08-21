@@ -1,6 +1,6 @@
 # Resto360
 
-PWA restaurant : tables → commande → cuisine → addition → paiement → MEV → reçu de fermeture.
+Application de restaurant Android : tables → commande → cuisine → addition → paiement → MEV → reçu de fermeture.
 
 ## État actuel
 
@@ -12,7 +12,7 @@ Fonctions actives :
 - plan de salle simple par sections;
 - menu administrable (nom, prix, catégorie, station);
 - articles NEW/SENT et tickets cuisine;
-- imprimantes réseau ESC/POS TCP port 9100 via `server.mjs`;
+- imprimantes réseau ESC/POS TCP port 9100, impression directe depuis l'appli Android (`PrinterBridgePlugin`);
 - paiement externe par carte : saisie du total final du terminal et calcul du pourboire;
 - comptant avec montant reçu, pourboire et monnaie;
 - sélection d'articles et division 2/3/4/X;
@@ -33,13 +33,18 @@ Fonctions actives :
 
 ## Démarrer
 
+Ouvrir le dossier `android/` dans Android Studio, laisser Gradle synchroniser, puis lancer sur un appareil ou un émulateur. En ligne de commande :
+
 ```bash
-npm start
+cd android
+./gradlew installDebug
 ```
 
-Puis ouvrir `http://localhost:8787`.
+Toute modification d'un fichier web (`app-v2.js`, `mev-live.js`, etc.) demande de resynchroniser les assets avant de rebuilder :
 
-Le serveur Node sert la PWA et agit comme bridge d'impression local. Une PWA Safari pure ne peut pas ouvrir directement un socket TCP vers une imprimante ESC/POS.
+```bash
+npx cap copy android
+```
 
 ## Imprimantes
 
@@ -116,18 +121,24 @@ Le mode production reste verrouillé. Pour rendre MEV réellement fiscal, il fau
 
 ```bash
 npm test
+node --check config.js
+node --check native-mev-bridge.js
 node --check app-v2.js
 node --check local-first.js
 node --check local-cache-fallback.js
-node --check bridge-ui.js
 node --check business-suite.js
 node --check fixed-expenses.js
 node --check payment-hook.js
+node --check mev-protocol.js
+node --check mev-live.js
+node --check mev-offline-queue.js
 node --check mev-runtime.js
+node --check mev-enrollment.js
 node --check ui-shell.js
 node --check pivots.js
 node --check demo-mode.js
-node --check server.mjs
+node --check sw76-readiness.js
+node --check onboarding-wizard.js
 ```
 
 GitHub Actions exécute les mêmes vérifications sur `main`.

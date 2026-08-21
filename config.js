@@ -8,11 +8,6 @@ window.RESTO360_CONFIG = {
   // The URL points to the swappable MEV gateway, not directly to the simulator.
   mevSimulatorUrl: 'https://okzniurqfhzhsnhifchj.supabase.co/functions/v1/mev-gateway',
 
-  // Optional default. Normally configured from Réglages on each iPad.
-  // Use HTTPS when the PWA itself is served over HTTPS.
-  bridgeUrl: '',
-  bridgeToken: '',
-
   // LAN printer addresses stored per restaurant in Supabase.
   kitchenPrinterIp: '',
   receiptPrinterIp: ''

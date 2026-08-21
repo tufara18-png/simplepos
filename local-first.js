@@ -28,12 +28,10 @@ async function cachedGet(url){const snap=await storeGet('snapshots',url);if(!sna
 function currentAuthHeaders(prefer){const s=JSON.parse(localStorage.getItem('resto360-session')||'null');const h={'Content-Type':'application/json',apikey:CFG.supabasePublishableKey||'',Authorization:`Bearer ${s?.access_token||CFG.supabasePublishableKey||''}`};if(prefer)h.Prefer=prefer;return h}
 async function replayOutbox(){if(replaying||!navigator.onLine||!REST_PREFIX)return;replaying=true;try{const rows=(await storeAll('outbox')).sort((a,b)=>a.id-b.id);for(const item of rows){const r=await originalFetch(item.url,{method:item.method,headers:currentAuthHeaders(item.prefer),body:item.body==null?undefined:JSON.stringify(item.body)}).catch(()=>null);if(!r)break;if(r.ok){await storeDelete('outbox',item.id);continue}const text=await r.text().catch(()=>'');if(r.status===409&&item.method==='POST'&&item.body&&text.toLowerCase().includes('duplicate')){await storeDelete('outbox',item.id);continue}await storePut('outbox',{...item,attempts:Number(item.attempts||0)+1,lastError:`${r.status} ${text}`.slice(0,500)});break}}finally{replaying=false;dispatchStatus()}}
 async function dispatchStatus(){const pending=(await storeAll('outbox').catch(()=>[])).length;const primed=!!(await storeGet('meta','primed').catch(()=>null));window.dispatchEvent(new CustomEvent('resto360-local-status',{detail:{pending,primed,online:navigator.onLine}}))}
-function bridgeBase(){return (localStorage.getItem('resto360-bridge-url')||CFG.bridgeUrl||'').replace(/\/$/,'')}
-function bridgeToken(){return localStorage.getItem('resto360-bridge-token')||CFG.bridgeToken||''}
-
-// Android (unlike Safari/WKWebView) can open a raw TCP socket, so the wrapped app talks to
-// the printer directly and never needs server.mjs. iOS and any browser fall through to the
-// existing bridge-URL / same-origin behaviour untouched below.
+// Android (unlike a plain browser tab) can open a raw TCP socket, so the wrapped app talks
+// to the printer directly through this plugin. There is no other transport any more -- the
+// old browser/PWA install had no way to open a TCP socket itself, hence the now-removed
+// local relay server (server.mjs) and its "Bridge local" settings card.
 function androidPrinterPlugin(){return window.Capacitor?.isNativePlatform?.()?window.Capacitor.Plugins?.PrinterBridge:null}
 async function nativePrint(body){
   const plugin=androidPrinterPlugin();
@@ -54,7 +52,8 @@ window.Resto360Printer={kickDrawer,isAndroidNative:()=>!!androidPrinterPlugin()}
 async function routedPrint(input,init={}){
   const plugin=androidPrinterPlugin();
   if(plugin){const body=parseJsonBody(init.body);if(body)return nativePrint(body)}
-  const base=bridgeBase();if(!base)return originalFetch(input,init);const headers=new Headers(init.headers||{});const token=bridgeToken();if(token)headers.set('x-resto360-token',token);return originalFetch(`${base}/print`,{...init,headers})}
+  return new Response(JSON.stringify({error:'Impression disponible seulement dans l’application Android.'}),{status:501,headers:{'content-type':'application/json'}});
+}
 
 window.fetch=async function(input,init={}){const raw=typeof input==='string'?input:input.url;const method=String(init.method||(typeof input!=='string'&&input.method)||'GET').toUpperCase();if(raw==='/print'||raw.endsWith('/print')&&new URL(raw,location.href).origin===location.origin)return routedPrint(input,init);if(!REST_PREFIX||!raw.startsWith(REST_PREFIX))return originalFetch(input,init);
 const table=tableFromUrl(raw);if(method==='GET'){try{const r=await originalFetch(input,init);if(r.ok){const data=await r.clone().json().catch(()=>null);if(data!==null)await cacheSnapshot(raw,data)}return r}catch(e){const cached=await cachedGet(raw);if(cached)return cached;throw e}}
@@ -65,5 +64,5 @@ let body=parseJsonBody(init.body);if(method==='POST')body=ensureIds(table,body);
 try{const r=await originalFetch(input,nextInit);if(r.ok){let result=null;try{result=await r.clone().json()}catch{}const effective=method==='POST'&&result?result:body;await mutateSnapshots(table,raw,method,effective);return r}return r}catch(e){await queueMutation({url:raw,method,body,prefer:new Headers(init.headers||{}).get('Prefer')||'return=representation'});await mutateSnapshots(table,raw,method,body);return syntheticMutationResponse(method,body,raw)}};
 
 async function requestPersistentStorage(){try{if(navigator.storage?.persist)await navigator.storage.persist()}catch{}}
-window.Resto360Local={replay:replayOutbox,status:dispatchStatus,bridgeBase,requestPersistentStorage};
+window.Resto360Local={replay:replayOutbox,status:dispatchStatus,requestPersistentStorage};
 window.addEventListener('online',()=>{replayOutbox();dispatchStatus()});window.addEventListener('offline',dispatchStatus);setInterval(replayOutbox,10000);requestPersistentStorage();dispatchStatus();

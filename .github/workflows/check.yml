@@ -12,18 +12,22 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - run: node --check config.js
+      - run: node --check native-mev-bridge.js
       - run: node --check app-v2.js
       - run: node --check local-first.js
       - run: node --check local-cache-fallback.js
-      - run: node --check bridge-ui.js
       - run: node --check business-suite.js
       - run: node --check fixed-expenses.js
       - run: node --check payment-hook.js
+      - run: node --check mev-protocol.js
+      - run: node --check mev-live.js
+      - run: node --check mev-offline-queue.js
       - run: node --check mev-runtime.js
+      - run: node --check mev-enrollment.js
       - run: node --check ui-shell.js
       - run: node --check pivots.js
       - run: node --check demo-mode.js
       - run: node --check sw76-readiness.js
-      - run: node --check pwa-device-readiness.js
-      - run: node --check server.mjs
+      - run: node --check onboarding-wizard.js
       - run: node tests.mjs

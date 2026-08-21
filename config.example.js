@@ -4,8 +4,6 @@ window.RESTO360_CONFIG = {
   // Legacy key name retained by the current frontend; point it at mev-gateway.
   mevSimulatorUrl: 'https://PROJECT.supabase.co/functions/v1/mev-gateway',
   restaurantId: '',
-  bridgeUrl: '',
-  bridgeToken: '',
   kitchenPrinterIp: '',
   receiptPrinterIp: ''
 };
