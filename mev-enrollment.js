@@ -44,9 +44,17 @@ function fieldRow(id, label, value = '', placeholder = '') {
   return `<label>${label}<input id="${id}" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}" autocomplete="off"></label>`;
 }
 
-async function render() {
-  const host = $('#mevEnrollmentBody');
+/**
+ * Renders the enrolment form/status/actions into an arbitrary host element -- used both by
+ * this module's own settings-screen card (installCard below) and by the onboarding wizard
+ * (onboarding-wizard.js), so there is exactly one implementation of the CSR/certificats flow
+ * instead of two that could drift apart. onChange, if given, fires after every save/generate/
+ * send action so a caller tracking step completion (the wizard) knows to re-check state --
+ * this module has no notion of "steps" itself.
+ */
+export async function renderMevEnrollmentInto(host, { onChange } = {}) {
   if (!host) return;
+  const $h = (s) => host.querySelector(s);
   const nativeReady = window.Resto360Mev?.isAndroidNative?.() === true;
   const r = await restaurant();
   const cfg = (await getConfig(r.id)) || {};
@@ -73,26 +81,27 @@ async function render() {
     <div id="mevEnrollResult" class="muted"></div>
   `;
 
-  $('#mevSaveConfig').onclick = async () => {
+  $h('#mevSaveConfig').onclick = async () => {
     try {
       await upsertConfig(r.id, {
-        environment: $('#mevEnv').value.trim().toUpperCase(),
-        dossier_number: $('#mevDossier').value.trim() || null,
-        authorization_code: $('#mevAuthCode').value.trim() || null,
-        operator_identification_number: $('#mevOperatorId').value.trim() || null,
-        id_partn: $('#mevIdPartn').value.trim() || null,
-        id_sev: $('#mevIdSev').value.trim() || null,
-        id_versi: $('#mevIdVersi').value.trim() || null,
-        cod_certif: $('#mevCodCertif').value.trim() || null,
-        versi: $('#mevVersi').value.trim() || null,
-        versi_parn: $('#mevVersiParn').value.trim() || '0',
+        environment: $h('#mevEnv').value.trim().toUpperCase(),
+        dossier_number: $h('#mevDossier').value.trim() || null,
+        authorization_code: $h('#mevAuthCode').value.trim() || null,
+        operator_identification_number: $h('#mevOperatorId').value.trim() || null,
+        id_partn: $h('#mevIdPartn').value.trim() || null,
+        id_sev: $h('#mevIdSev').value.trim() || null,
+        id_versi: $h('#mevIdVersi').value.trim() || null,
+        cod_certif: $h('#mevCodCertif').value.trim() || null,
+        versi: $h('#mevVersi').value.trim() || null,
+        versi_parn: $h('#mevVersiParn').value.trim() || '0',
       });
-      $('#mevEnrollResult').textContent = 'Inscription enregistrée.';
-    } catch (e) { $('#mevEnrollResult').textContent = `Erreur : ${e.message}`; }
+      $h('#mevEnrollResult').textContent = 'Inscription enregistrée.';
+      onChange?.();
+    } catch (e) { $h('#mevEnrollResult').textContent = `Erreur : ${e.message}`; }
   };
 
-  $('#mevGenerateCsr').onclick = async () => {
-    const btn = $('#mevGenerateCsr'); btn.disabled = true; btn.textContent = 'Génération…';
+  $h('#mevGenerateCsr').onclick = async () => {
+    const btn = $h('#mevGenerateCsr'); btn.disabled = true; btn.textContent = 'Génération…';
     try {
       await window.Resto360Mev.generateKeyPair(DEVICE_ALIAS);
       const freshCfgForCsr = await getConfig(r.id);
@@ -100,24 +109,24 @@ async function render() {
       const csr = await window.Resto360Mev.createOperatorCsr({
         alias: DEVICE_ALIAS,
         cn: freshCfgForCsr.operator_identification_number,
-        o: `RBC-${$('#mevAuthCode').value.trim() || 'XXXX-XXXX'}`,
+        o: `RBC-${$h('#mevAuthCode').value.trim() || 'XXXX-XXXX'}`,
         ou: r.qst_number || '',
         sn: `Resto360-${r.id.slice(0, 8)}`,
-        gn: $('#mevDossier').value.trim() || '',
+        gn: $h('#mevDossier').value.trim() || '',
         l: '-05:00',
         s: 'QC',
         c: 'CA',
       });
       await upsertDevice(r.id, { csr_pem: csr.csrPem, certificate_status: 'pending' });
-      $('#mevEnrollResult').textContent = 'CSR généré et enregistré. Prêt à envoyer.';
-      await render();
+      await renderMevEnrollmentInto(host, { onChange });
+      onChange?.();
     } catch (e) {
-      $('#mevEnrollResult').textContent = `Erreur : ${e.message}`;
-    } finally { btn.disabled = false; btn.textContent = 'Générer une clé et un CSR'; }
+      $h('#mevEnrollResult').textContent = `Erreur : ${e.message}`;
+    } finally { const b = $h('#mevGenerateCsr'); if (b) { b.disabled = false; b.textContent = 'Générer une clé et un CSR'; } }
   };
 
-  $('#mevSendCertif').onclick = async () => {
-    const btn = $('#mevSendCertif'); btn.disabled = true; btn.textContent = 'Envoi…';
+  $h('#mevSendCertif').onclick = async () => {
+    const btn = $h('#mevSendCertif'); btn.disabled = true; btn.textContent = 'Envoi…';
     try {
       if (!window.Resto360Mev?.isAndroidNative?.()) throw new Error('Envoi disponible seulement dans l’appli Android');
       const freshCfg = await getConfig(r.id);
@@ -153,13 +162,16 @@ async function render() {
         environment: headers.ENVIRN, request_headers: headers, request_body: reqCertif,
         response_status: sent.status, response_body: data, error_code: ok ? null : String(sent.status), error_message: data?.retourCertif?.listErr?.[0]?.mess || null,
       } });
-      $('#mevEnrollResult').textContent = ok
+      const resultMessage = ok
         ? 'Requête acceptée par le MEV-WEB — certificat reçu.'
         : `Refusée (${sent.status}) : ${data?.retourCertif?.listErr?.[0]?.mess || 'voir le journal'}`;
-      await render();
+      await renderMevEnrollmentInto(host, { onChange });
+      const freshResult = $h('#mevEnrollResult');
+      if (freshResult) freshResult.textContent = resultMessage;
+      onChange?.();
     } catch (e) {
-      $('#mevEnrollResult').textContent = `Erreur : ${e.message}`;
-    } finally { btn.disabled = false; btn.textContent = 'Envoyer la requête certificats'; }
+      $h('#mevEnrollResult').textContent = `Erreur : ${e.message}`;
+    } finally { const b = $h('#mevSendCertif'); if (b) { b.disabled = false; b.textContent = 'Envoyer la requête certificats'; } }
   };
 }
 
@@ -180,7 +192,7 @@ function installCard() {
   card.className = 'settings-card';
   card.innerHTML = `<div class="card-head"><div><h2>Enrôlement MEV-WEB (SW-73)</h2><p class="muted">Inscription partenaire et demande de certificat. Rien n'est envoyé à Revenu Québec avant d'avoir cliqué sur les boutons ci-dessous.</p></div></div><div id="mevEnrollmentBody"><div class="muted">Chargement…</div></div>`;
   grid.appendChild(card);
-  render().catch((e) => { const body = $('#mevEnrollmentBody'); if (body) body.textContent = e.message; });
+  renderMevEnrollmentInto($('#mevEnrollmentBody')).catch((e) => { const body = $('#mevEnrollmentBody'); if (body) body.textContent = e.message; });
   return true;
 }
 
