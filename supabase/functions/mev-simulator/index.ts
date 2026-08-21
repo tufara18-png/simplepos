@@ -1,5 +1,13 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+// See mev-gateway/index.ts for why this is required, not optional -- confirmed live
+// against this project that a preflight without it gets blocked before the real POST.
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+};
+
 type SimulationMode = "accepted" | "rejected" | "retryable" | "timeout";
 type DocumentType = "addition" | "closing_receipt" | "credit_note" | "correction";
 type MevEnvelope = {
@@ -113,6 +121,7 @@ class MevController {
 }
 
 Deno.serve(async (req:Request) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method === "GET") {
     return Response.json({
       service:"SimplePOS MEV simulator",
@@ -121,11 +130,11 @@ Deno.serve(async (req:Request) => {
       certified:false,
       states:["accepted","rejected","retryable","timeout"],
       documents:["addition","closing_receipt","credit_note","correction"],
-    }, { headers:{"cache-control":"no-store"} });
+    }, { headers:{"cache-control":"no-store", ...cors} });
   }
-  if (req.method !== "POST") return Response.json({ error:"POST required" }, { status:405 });
+  if (req.method !== "POST") return Response.json({ error:"POST required" }, { status:405, headers: cors });
   const input = await req.json().catch(() => ({}));
-  if (!input.id) return Response.json({ environment:"SIMULATOR", certified:false, status:"rejected", retryable:false, error_code:"SIM_MISSING_ID", error_message:"Invoice id required" }, { status:422 });
+  if (!input.id) return Response.json({ environment:"SIMULATOR", certified:false, status:"rejected", retryable:false, error_code:"SIM_MISSING_ID", error_message:"Invoice id required" }, { status:422, headers: cors });
   const result = await new MevController(new SimulatorTransport()).submit(input);
-  return Response.json(result, { status:200, headers:{"cache-control":"no-store"} });
+  return Response.json(result, { status:200, headers:{"cache-control":"no-store", ...cors} });
 });

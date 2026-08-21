@@ -1,11 +1,23 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+// Without these, a real cross-origin browser call (any deployed origin, or a Capacitor
+// app's localhost) never gets past its own CORS preflight: the POST carries
+// Content-Type: application/json + Authorization, which forces an OPTIONS preflight first,
+// and a 405 with no Access-Control-Allow-Origin makes the browser block the real request
+// before it is ever sent. Confirmed live against this project with a manual OPTIONS probe.
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+};
+
 const json = (body: unknown, status = 200) => Response.json(body, {
   status,
-  headers: { "cache-control": "no-store" },
+  headers: { "cache-control": "no-store", ...cors },
 });
 
 Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method === "GET") {
     const transport = Deno.env.get("MEV_TRANSPORT") || "simulator";
     return json({
@@ -50,6 +62,6 @@ Deno.serve(async (req: Request) => {
 
   return new Response(await upstream.text(), {
     status: upstream.status,
-    headers: { "content-type": "application/json", "cache-control": "no-store" },
+    headers: { "content-type": "application/json", "cache-control": "no-store", ...cors },
   });
 });

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {buildItems,buildMont,taxIndicator,interpretCodRetour,buildSignatureInput,buildReqCertif,validateSevText} from './mev-protocol.js';
 
 function round2(n){return Math.round((Number(n)+Number.EPSILON)*100)/100}
 function calcTax(sub){const gst=round2(sub*0.05),qst=round2(sub*0.09975);return {gst,qst,total:round2(sub+gst+qst)}}
@@ -89,4 +90,38 @@ assert.deepEqual(pwaCapability({standalone:true,persisted:true,cryptoVerified:tr
 assert.deepEqual(pwaCapability({standalone:true,persisted:true,cryptoVerified:true,privateExtractable:false,bridgeReachable:false}),{localSigningReady:true,fullOperationalPath:false});
 assert.equal(pwaCapability({standalone:false,persisted:true,cryptoVerified:true,privateExtractable:false,bridgeReachable:true}).localSigningReady,false);
 
-console.log('OK - taxes, split, pourboire, statuts MEV, noms SRM, documents SW-76 et diagnostic PWA');
+// mev-protocol.js: real SW-73 field builders, checked against the worked example printed in
+// SW-76 4.4.1 (Michel Untel enr., 1 item at 4,80 $, TPS 0,24 $, TVQ 0,48 $, total 5,52 $).
+assert.deepEqual(taxIndicator({gstApplies:true,qstApplies:true}),'FP');
+assert.deepEqual(taxIndicator({gstApplies:false,qstApplies:false}),'NON');
+assert.deepEqual(buildItems([{name:'Article 1',quantity:1,line_total:4.80}]),[{qte:'+00001.00',descr:'Article 1',prix:'+000000004.80',tax:'FP'}]);
+const mont=buildMont({subtotal:4.80,gst:0.24,qst:0.48,total:5.52});
+assert.equal(mont.avantTax,'+000000004.80');
+assert.equal(mont.TPS,'+000000000.24');
+assert.equal(mont.TVQ,'+000000000.48');
+assert.equal(mont.apresTax,'+000000005.52');
+assert.equal(buildMont({subtotal:0,gst:0,qst:0,total:0}).ajus,undefined); // no invented adjustment when there is none
+
+// SW-73.A: only codes ending in 0, 1 or 5 mean "retransmit in the next batch".
+assert.equal(interpretCodRetour('94').shouldRetransmit,false); // JW00B999000E family (contexte)
+assert.equal(interpretCodRetour('11').shouldRetransmit,true);
+assert.equal(interpretCodRetour('91').shouldRetransmit,true);
+assert.equal(interpretCodRetour('12').shouldRetransmit,false);
+assert.equal(interpretCodRetour('00').shouldRetransmit,true);
+assert.equal(interpretCodRetour(5).shouldRetransmit,true); // accepts a bare number, not just "05"
+
+// SW-73 Tableau 22: authCode + IDAPPRL + signature(s), oldest to newest, no separators.
+assert.equal(
+  buildSignatureInput({authorizationCode:'X1X1-X1X1',idApprl:'9999-9999-9999',transactionSignatures:['sigA','sigB']}),
+  'X1X1-X1X19999-9999-9999sigAsigB'
+);
+
+// SW-73 4.3.1.1: "AJO" carries the CSR, "REM"/"SUP" carry the serial being replaced -- never both.
+assert.deepEqual(buildReqCertif({modif:'AJO',csrPem:'-----BEGIN...'}),{reqCertif:{modif:'AJO',csr:'-----BEGIN...'}});
+assert.deepEqual(buildReqCertif({modif:'SUP',certificateSerialToReplace:'AB12'}),{reqCertif:{modif:'SUP',noSerie:'AB12'}});
+
+assert.equal(validateSevText('Terrasse'),null);
+assert.match(validateSevText(' Terrasse'),/espace/);
+assert.match(validateSevText('Café ☕'),/alphabet/);
+
+console.log('OK - taxes, split, pourboire, statuts MEV, noms SRM, documents SW-76, diagnostic PWA et protocole MEV-WEB (SW-73)');
