@@ -7,7 +7,7 @@
 // MevKeystore (anything but the Android wrapper today), gets a clear "not available" result,
 // never a silently-invented fiscal outcome.
 
-import { buildReqTrans, buildTransactionSignatureInput, buildHeaders, buildSignatureInput, buildReqUtil, endpointFor, interpretCodRetour } from './mev-protocol.js';
+import { buildReqTrans, buildTransactionSignatureInput, buildHeaders, buildSignatureInput, buildReqUtil, buildReqDocumentRut, buildReportSignatureInput, withReportSignatureAndFooter, formatDocumentFields, endpointFor, interpretCodRetour } from './mev-protocol.js';
 import { enqueueSignedTransaction, effectivePreced, flushQueue, queueLength } from './mev-offline-queue.js';
 
 const CFG = window.RESTO360_CONFIG || {};
@@ -46,7 +46,7 @@ function notAvailable(reason) {
  * app-v2.js already expects from submitMev (status/transaction_id/qr_payload/environment),
  * so wiring this in does not require reshaping the caller.
  */
-export async function submitMevTransaction({ restaurant, invoice, invoiceItems, paymentMethod, tableLabel, guestCount }) {
+export async function submitMevTransaction({ restaurant, invoice, invoiceItems, paymentMethod, tableLabel, guestCount, documentType = 'closing_receipt', replacesTransaction = null }) {
   if (!window.Resto360Mev?.isAndroidNative?.()) return notAvailable('Transmission réelle disponible seulement dans l’appli Android.');
 
   const { device, partnerConfig } = await loadDeviceAndConfig(restaurant.id);
@@ -83,9 +83,10 @@ export async function submitMevTransaction({ restaurant, invoice, invoiceItems, 
     invoice: effectiveInvoice,
     invoiceItems,
     paymentMethod,
-    documentType: 'closing_receipt',
+    documentType,
     tableLabel,
     guestCount,
+    replacesTransaction,
     signaturePreviousBase88: preced,
   });
   const transActu = reqTrans.transActu;
@@ -201,6 +202,49 @@ export async function submitMevUserAccount({ restaurant, modif, userName, gstNum
   await api('mev_partner_requests', { method: 'POST', prefer: 'return=minimal', body: {
     restaurant_id: restaurant.id, device_id: device.id, request_type: 'utilisateur',
     environment: headers.ENVIRN, request_headers: headers, request_body: reqUtil,
+    response_status: status, response_body: data, error_code: ok ? null : String(status),
+  } });
+
+  return { environment: headers.ENVIRN, certified: true, status: ok ? 'accepted' : 'rejected', raw: data };
+}
+
+/**
+ * "document" request (typDoc "RUT") for the rapport de l'utilisateur (SW-77 Cas 103/603,
+ * SW-78 FO-110/128) -- until now generateUserReport() only ever printed locally, never
+ * transmitted anything. Like submitMevUserAccount, this is read from the spec and never
+ * exercised live -- see buildReqDocumentRut's header comment in mev-protocol.js for the
+ * specific simplifications made where Tableau 28 was hard to read after PDF conversion.
+ */
+export async function submitMevUserReport({ restaurant, report, lastInvoice, loginAt }) {
+  if (!window.Resto360Mev?.isAndroidNative?.()) return notAvailable('Transmission réelle disponible seulement dans l’appli Android.');
+
+  const { device, partnerConfig } = await loadDeviceAndConfig(restaurant.id);
+  if (!device?.id_apprl || device.certificate_status !== 'active') return notAvailable('Aucun certificat MEV actif -- complétez l’enrôlement dans Réglages.');
+  if (!partnerConfig?.id_sev || !partnerConfig?.id_partn || !partnerConfig?.authorization_code) return notAvailable('Inscription partenaire incomplète -- complétez Réglages avant de transmettre.');
+
+  const effectivePartnerConfig = { ...partnerConfig, no_tps: restaurant.gst_number, no_tvq: restaurant.qst_number };
+  const nomUtilOuMandt = String(report.user_name || restaurant.legal_name || restaurant.name || '').slice(0, 64);
+  const fields = buildReqDocumentRut({ restaurant, device, partnerConfig: effectivePartnerConfig, report, lastInvoice, loginAt });
+  const signInput = buildReportSignatureInput({ partnerConfig: effectivePartnerConfig, nomUtilOuMandt, lastInvoice, report, device, loginAt });
+  const signed = await window.Resto360Mev.sign(DEVICE_ALIAS, signInput);
+  const doc = formatDocumentFields(withReportSignatureAndFooter(fields, { signatureBase64: signed.signatureBase64, device, restaurant }));
+
+  const headers = buildHeaders({ environment: partnerConfig.environment || 'DEV', device, partnerConfig: effectivePartnerConfig });
+  const url = endpointFor('document', null, headers.ENVIRN);
+
+  let response;
+  try {
+    response = await window.Resto360Mev.sendRequest({ url, headers, body: JSON.stringify({ reqDoc: { typDoc: 'RUT', doc } }), keyAlias: DEVICE_ALIAS, certificatePem: device.certificate_pem });
+  } catch (networkError) {
+    return { environment: headers.ENVIRN, certified: true, status: 'retryable', error_message: String(networkError?.message || networkError) };
+  }
+
+  const status = Number(response.status);
+  const data = JSON.parse(response.body || '{}');
+  const ok = status >= 200 && status < 300;
+  await api('mev_partner_requests', { method: 'POST', prefer: 'return=minimal', body: {
+    restaurant_id: restaurant.id, device_id: device.id, request_type: 'document',
+    environment: headers.ENVIRN, request_headers: headers, request_body: { typDoc: 'RUT', doc },
     response_status: status, response_body: data, error_code: ok ? null : String(status),
   } });
 

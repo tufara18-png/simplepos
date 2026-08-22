@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {buildItems,buildMont,taxIndicator,interpretCodRetour,buildSignatureInput,buildTransactionSignatureInput,buildOfflineBatchEnvelope,buildReqCertif,buildReqUtil,parseCertificateSerialHex,validateSevText} from './mev-protocol.js';
+import {buildItems,buildMont,taxIndicator,interpretCodRetour,buildSignatureInput,buildTransactionSignatureInput,buildOfflineBatchEnvelope,buildReqCertif,buildReqUtil,buildReqTrans,buildReqDocumentRut,buildReportSignatureInput,withReportSignatureAndFooter,formatDocumentFields,datTrans,parseCertificateSerialHex,validateSevText} from './mev-protocol.js';
 import {splitIntoBatches} from './mev-offline-queue.js';
 
 function round2(n){return Math.round((Number(n)+Number.EPSILON)*100)/100}
@@ -99,6 +99,50 @@ assert.doesNotMatch(liveReceipt,/TRANSPORT MEV OFFICIEL NON CONFIGURÉ/);
   const wrapped = Buffer.concat([Buffer.from([0x30, cert.length]), cert]);
   const pem = `-----BEGIN CERTIFICATE-----\n${wrapped.toString('base64')}\n-----END CERTIFICATE-----`;
   assert.equal(parseCertificateSerialHex(pem), '1234ABCD');
+}
+
+// Credit note wiring (SW-77 Cas 006/506, FO-116): documentType 'credit_note' must map to
+// RFER/FAC (already confirmed live for a credit note in commit bc25b83), each item must carry
+// an inversely-equal price rather than being collapsed into one "Annulation" line (SW-73
+// 4.4.1.1.8), and refs[] must point back at the original transaction.
+{
+  const restaurant={legal_name:'Michel Untel enr.',name:'Michel Untel enr.',gst_number:'123456789RT0001',qst_number:'1234567890TQ0001'};
+  const device={certificate_thumbprint_sha1:'ABCDEF'};
+  const partnerConfig={dossier_number:'AA9999',no_tps:restaurant.gst_number,no_tvq:restaurant.qst_number,id_sev:'0000000000000001',id_versi:'0000000000000002',cod_certif:'FOB201999999',id_partn:'0000000000000003',versi:'1.0',versi_parn:'0'};
+  const originalCreatedAt='2026-08-17T12:00:00Z';
+  const note={id:'note-1',invoice_number:42,user_name:'Michel Untel',created_at:'2026-08-17T12:05:00Z',subtotal:-4.80,gst:-0.24,qst:-0.48,total:-5.52,tip_amount:0};
+  const items=[{name:'Article 1',quantity:1,line_total:-4.80}];
+  const {reqTrans}=buildReqTrans({
+    restaurant,device,partnerConfig,invoice:note,invoiceItems:items,paymentMethod:'card',documentType:'credit_note',
+    replacesTransaction:{noTrans:'41',datTrans:datTrans(originalCreatedAt),avantTax:4.80},
+    signaturePreviousBase88:'='.repeat(88),
+  });
+  assert.equal(reqTrans.transActu.typTrans,'RFER');
+  assert.equal(reqTrans.transActu.modImpr,'FAC');
+  assert.deepEqual(reqTrans.transActu.items,[{qte:'+00001.00',descr:'Article 1',prix:'-000000004.80',tax:'FP',acti:'NON'}]);
+  assert.deepEqual(reqTrans.transActu.refs,[{noTrans:'41',datTrans:datTrans(originalCreatedAt),avantTax:'+000000004.80'}]);
+}
+
+// Rapport de l'utilisateur transmis en "document" (SW-77 Cas 103/603, SW-78 FO-110/128): field
+// order/format per Tableau 28's worked example, SI inserted before EM/AD (not after, as the
+// naive append order would give).
+{
+  const restaurant={legal_name:'Michel Untel enr.',name:'Michel Untel enr.',gst_number:'123456789RT0001',qst_number:'1234567890TQ0001',address:'3800, rue de Marly, Québec, G1X4A5'};
+  const device={id_apprl:'0001-2345-6789',certificate_thumbprint_sha1:'11E1D6307770C96B63227E3EA7E18A9C48E02A8C'};
+  const partnerConfig={no_tps:restaurant.gst_number,no_tvq:restaurant.qst_number,id_sev:'1234567890ABCDEF',versi:'1.0'};
+  const report={user_name:'Michel Untel',period_year:2020,sales_count:16,sales_subtotal:20,sales_gst:1,sales_qst:2,sales_total:23};
+  const lastInvoice={invoice_number:'1234567890',total:15,created_at:'2020-01-01T12:59:39Z'};
+  const loginAt='2020-01-01T13:01:08Z';
+  const fields=buildReqDocumentRut({restaurant,device,partnerConfig,report,lastInvoice,loginAt});
+  assert.deepEqual(fields.slice(0,6),[['RT','123456789RT0001'],['TQ','1234567890TQ0001'],['UT','Michel Untel'],['NO','1234567890'],['MT','+000000015.00'],['DF',datTrans(lastInvoice.created_at)]]);
+  const withFooter=withReportSignatureAndFooter(fields,{signatureBase64:'SIGNATURE',device,restaurant});
+  const doc=formatDocumentFields(withFooter);
+  assert.match(doc,/DR=\d{14};SI=SIGNATURE;EM=11E1D6307770C96B63227E3EA7E18A9C48E02A8C;AD=3800, rue de Marly, Québec, G1X4A5$/);
+  assert.match(doc,/^RT=123456789RT0001;TQ=1234567890TQ0001;UT=Michel Untel;NO=1234567890;MT=\+000000015\.00;/);
+  const signInput=buildReportSignatureInput({partnerConfig,nomUtilOuMandt:'Michel Untel',lastInvoice,report,device,loginAt});
+  const expectedPrefix=`123456789RT00011234567890TQ0001Michel Untel1234567890+000000015.00${datTrans(lastInvoice.created_at)}20201616+000000020.00+000000001.00+000000002.00+000000023.000001-2345-67891234567890ABCDEF1.0${datTrans(loginAt)}`;
+  assert.ok(signInput.startsWith(expectedPrefix),'signature input must match Tableau 30\'s order up to DR (report time, appended last, is the only non-deterministic part)');
+  assert.equal(signInput.length,expectedPrefix.length+14,'DR is a 14-digit AAAAMMJJHHmmSS timestamp');
 }
 
 // SW-78 FO-132: a transLot batch over the 256 ko cap must be split into consecutive,

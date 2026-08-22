@@ -40,7 +40,7 @@ function qty(n) {
   return `${sign}${Math.abs(v).toFixed(2).padStart(8, '0')}`;
 }
 
-function datTrans(date) {
+export function datTrans(date) {
   const d = new Date(date);
   const p = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
@@ -374,4 +374,92 @@ export function endpointFor(requestType, modif, environment) {
       : `https://${confirm}api.rq-fo.ca/certificats`;
   }
   return `https://${confirm}api.rq-fo.ca/${requestType}`;
+}
+
+/**
+ * "document" request for the rapport de l'utilisateur (typDoc "RUT", SW-73 4.3.4.2.1/Tableau 28,
+ * signature order per Tableau 30). BEST RECONSTRUCTION FROM THE SPEC, NOT VERIFIED LIVE (unlike
+ * reqTrans/reqCertif above) -- Tableau 28's field-to-code mapping was badly mangled by PDF
+ * conversion; UT/AN/VR/EM's meanings were recovered from the worked example and the clearer
+ * restatement in SW-73.B rather than a clean table read. Known simplifications, to revisit once
+ * an actual cas d'essai is run against this:
+ *   - SN (total transactions) and SV (payment transactions, Tableau 29) are both set to the same
+ *     count. generateUserReport() only aggregates accepted/paid invoices today, which is really
+ *     just SV -- Resto360 has no query yet for the broader SN (would also include free/cancelled/
+ *     Formation-mode documents, none of which exist as a separate countable set today).
+ *   - SA (montant ajusté) is always 0 -- nothing in Resto360 tracks a report-level adjustment
+ *     distinct from the sales total itself.
+ *   - TS "A" and SR/IA = the device's own IDAPPRL assume Resto360's current one-device-per-
+ *     restaurant reality; would need to become "E" (établissement) if that ever changes.
+ *   - CM "Tous": generateUserReport() aggregates every invoice for the restaurant regardless of
+ *     which staff account rang it, so this is never "Unique".
+ */
+export function buildReqDocumentRut({ restaurant, device, partnerConfig, report, lastInvoice, loginAt }) {
+  const nomUtilOuMandt = String(report.user_name || restaurant.legal_name || restaurant.name || '').slice(0, 64);
+  const sn = String(Math.trunc(report.sales_count));
+  const fields = [
+    ['RT', partnerConfig.no_tps],
+    ['TQ', partnerConfig.no_tvq],
+    ['UT', nomUtilOuMandt],
+    ['NO', lastInvoice ? String(lastInvoice.invoice_number ?? '').slice(0, 10) : ''],
+    ['MT', money(lastInvoice ? lastInvoice.total : 0)],
+    ['DF', lastInvoice ? datTrans(lastInvoice.created_at) : datTrans(Date.now())],
+    ['AN', String(report.period_year)],
+    ['SN', sn],
+    ['SV', sn],
+    ['SS', money(report.sales_subtotal)],
+    ['SF', money(report.sales_gst)],
+    ['SP', money(report.sales_qst)],
+    ['ST', money(report.sales_total)],
+    ['SA', money(0)],
+    ['SD', money(report.sales_total)],
+    ['TS', 'A'],
+    ['SR', device.id_apprl || ''],
+    ['CM', 'Tous'],
+    ['IA', device.id_apprl || ''],
+    ['IS', partnerConfig.id_sev],
+    ['VR', partnerConfig.versi],
+    ['DC', datTrans(loginAt || Date.now())],
+    ['DR', datTrans(Date.now())],
+  ];
+  return fields;
+}
+
+/** Appends SI (the signature computed over buildReportSignatureInput's output), then EM/AD, in
+ * the exact order the worked example uses -- SI comes before EM/AD, not after. */
+export function withReportSignatureAndFooter(fields, { signatureBase64, device, restaurant }) {
+  return [...fields, ['SI', signatureBase64], ['EM', device.certificate_thumbprint_sha1 || ''], ['AD', restaurant.address || '']];
+}
+
+/**
+ * Tableau 30's concatenation order for the report's own signature -- deliberately not every
+ * field that ends up in the transmitted "doc" string (SA/SD/TS/SR/CM/EM/AD are excluded, same
+ * as the source table).
+ */
+export function buildReportSignatureInput({ partnerConfig, nomUtilOuMandt, lastInvoice, report, device, loginAt }) {
+  return [
+    partnerConfig.no_tps,
+    partnerConfig.no_tvq,
+    nomUtilOuMandt,
+    lastInvoice ? String(lastInvoice.invoice_number ?? '').slice(0, 10) : '',
+    money(lastInvoice ? lastInvoice.total : 0),
+    lastInvoice ? datTrans(lastInvoice.created_at) : datTrans(Date.now()),
+    String(report.period_year),
+    String(Math.trunc(report.sales_count)),
+    String(Math.trunc(report.sales_count)),
+    money(report.sales_subtotal),
+    money(report.sales_gst),
+    money(report.sales_qst),
+    money(report.sales_total),
+    device.id_apprl || '',
+    partnerConfig.id_sev,
+    partnerConfig.versi,
+    datTrans(loginAt || Date.now()),
+    datTrans(Date.now()),
+  ].join('');
+}
+
+/** Joins ordered [key,value] pairs (buildReqDocumentRut's output, extended by withReportSignatureAndFooter) into the ";"-delimited "doc" string SW-73 4.3.4.2.1 requires. */
+export function formatDocumentFields(fields) {
+  return fields.map(([k, v]) => `${k}=${v ?? ''}`).join(';');
 }
