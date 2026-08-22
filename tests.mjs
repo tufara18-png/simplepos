@@ -161,6 +161,20 @@ assert.doesNotMatch(liveReceipt,/TRANSPORT MEV OFFICIEL NON CONFIGURÉ/);
   assert.equal(modPaiFor('card'),'CRE');
 }
 
+// SW-77 Cas 008/508 "Utiliser le mode Formation": modTrans must be FOR when the invoice was
+// created under formation_mode, OPE otherwise (SW-73 4.4.1.1.16 -- still transmitted either way).
+{
+  const restaurant={legal_name:'Michel Untel enr.',name:'Michel Untel enr.',gst_number:'123456789RT0001',qst_number:'1234567890TQ0001'};
+  const device={certificate_thumbprint_sha1:'ABCDEF'};
+  const partnerConfig={dossier_number:'AA9999',no_tps:restaurant.gst_number,no_tvq:restaurant.qst_number,id_sev:'0000000000000001',id_versi:'0000000000000002',cod_certif:'FOB201999999',id_partn:'0000000000000003',versi:'1.0',versi_parn:'0'};
+  const items=[{name:'Article',quantity:1,line_total:4.80}];
+  const invoice={invoice_number:1,id:'inv-1',created_at:'2026-08-22T12:00:00Z',subtotal:4.80,gst:0.24,qst:0.48,total:5.52,tip_amount:0};
+  const modTransFor=(modeTransaction)=>buildReqTrans({restaurant,device,partnerConfig,invoice,invoiceItems:items,paymentMethod:'cash',documentType:'closing_receipt',signaturePreviousBase88:'='.repeat(88),modeTransaction}).reqTrans.transActu.modTrans;
+  assert.equal(modTransFor('FOR'),'FOR');
+  assert.equal(modTransFor('OPE'),'OPE');
+  assert.equal(modTransFor(undefined),'OPE','no mode_transaction on the invoice must default to OPE, never silently FOR');
+}
+
 // SW-78 FO-132: a transLot batch over the 256 ko cap must be split into consecutive,
 // oldest-first groups that each fit, not sent as one oversized request.
 {

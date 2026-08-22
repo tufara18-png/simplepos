@@ -51,7 +51,7 @@ dans la déclaration plutôt que de construire la fonctionnalité).
 | FO-114 | Ajouter et retirer des items | Couvert (addition révisée, compteur de révisions) |
 | FO-115 | Annuler une transaction | Couvert au niveau DB (`void_order`) mais pas encore transmis comme vraie transaction MEV annulée (typTrans SOB) — actuellement local seulement |
 | FO-116 | Note de crédit relative à une facture | Idem : `create_credit_note()` existe mais n'est pas encore câblé à une vraie transmission MEV |
-| FO-117 | Facture en mode Formation | **Gap**, lié à Cas 008/508 plus bas — aucun mode Formation MEV réel |
+| FO-117 | Facture en mode Formation | **Fait**, voir Cas 008/508 ci-dessous |
 | FO-118 | Accéder aux données du SEV (cloisonnement entre exploitants) | Couvert par RLS par restaurant ; l'étape « entre employés » est sautable pour RBC sans « gérer plusieurs mandataires » (Resto360 n'a pas cette caractéristique) |
 | FO-119 | Empêcher la suppression avant copie | À vérifier explicitement, sinon petit ajout de garde-fou |
 | FO-120 | Copier les données de l'exploitant | Probablement déjà largement couvert par l'export JSON/CSV existant (`Gestion → Archives fiscales locales`) — reste à empaqueter en ZIP et confirmer la couverture exacte demandée (FO-105, FO-106, FO-117, FO-104, FO-108, FO-114, FO-115, FO-116) |
@@ -80,7 +80,7 @@ dans la déclaration plutôt que de construire la fonctionnalité).
 | 005/505 | Corriger un reçu de fermeture | À vérifier |
 | 006/506 | Produire une note de crédit | **Fait** — `createCreditNote()` transmet maintenant une vraie transaction MEV (typTrans RFER, items à prix inversement égal, `refs[]` vers la facture originale) |
 | 007/507 | Parti sans payer | Couvert |
-| 008/508 | Utiliser le mode Formation | **Gap**, lié à FO-117 |
+| 008/508 | Utiliser le mode Formation | **Fait** — interrupteur dans Réglages (`app_settings.formation_mode`, lu côté serveur, jamais confié au client), bannière permanente à l'écran, transactions marquées `modTrans FOR` mais réellement transmises, exclues du rapport de l'utilisateur, mention imprimée ajoutée sur addition/reçu/note de crédit. Mention exacte du SW-73 non confirmée (perdue à la conversion PDF, voir `mev-protocol.js`/`app-v2.js`) — texte actuel : « MODE FORMATION — TRANSACTION FICTIVE », à revalider contre le PDF original avant un vrai cas d'essai. Nécessite la migration `20260822_000035_formation_mode.sql` |
 | 009/509 | Factures en mode Hors ligne | Partiel, jamais testé sur appareil réel |
 | 010/510 | Produire une addition | Couvert |
 | 011/511 | Pourboire / frais de service | Couvert |
@@ -119,21 +119,30 @@ dans la déclaration plutôt que de construire la fonctionnalité).
    transmise en vrai (006/506), distinction carte crédit/débit (modPai CRE/DEB — migration
    `20260822_000034_card_type_credit_debit.sql`, **pas encore appliquée à Supabase**, voir
    « Migrations en attente » ci-dessous).
-4. Encore ouverts : mode Formation (008/508, FO-117), transférer un item (022/522), grouper des
-   factures (020/520), précisions d'item (030/530), annulation réellement transmise au MEV
-   (004/504 — `void_order()` ne crée pas de transaction référençable, contrairement à
-   `create_credit_note()`).
+4. Fait aussi : mode Formation (008/508, FO-117) — voir migration `20260822_000035_formation_mode.sql`.
+5. Encore ouverts : transférer un item (022/522), grouper des factures (020/520), précisions
+   d'item (030/530), annulation réellement transmise au MEV (004/504 — `void_order()` ne crée pas
+   de transaction référençable, contrairement à `create_credit_note()`).
 
 ## Migrations en attente
 
-Cette session n'a pas d'accès réseau vers Supabase (ni l'API de gestion, ni l'API REST du
-projet — bloqué par la politique réseau de l'environnement, pas un problème de jeton d'accès) :
-impossible d'appliquer une migration directement d'ici, contrairement à la session précédente sur
-le Mac de l'utilisateur. À appliquer manuellement (SQL Editor du dashboard Supabase, ou CLI) :
+Cette session n'a aucun accès réseau vers Supabase (ni l'API de gestion, ni l'API REST du
+projet — bloqué par la politique réseau de l'environnement, pas un problème de jeton d'accès,
+confirmé après un deuxième essai avec le jeton fourni) : impossible d'appliquer une migration
+directement d'ici, contrairement à la session précédente sur le Mac de l'utilisateur.
 
-- `supabase/migrations/20260822_000034_card_type_credit_debit.sql` — ajoute `payments.card_type`
-  et remplace `finalize_invoice()` par une version identique avec un paramètre `p_card_type` en
-  plus (copiée du fichier existant, pas reconstruite de mémoire). Tant que ce n'est pas appliqué,
-  choisir « Débit » à l'écran de paiement ferait échouer `finalize_invoice()` avec une erreur
-  Supabase (paramètre inconnu) — **ne pas déployer le changement d'appli avant d'avoir appliqué
-  cette migration**.
+**`docs/migration-mega-2026-08-22.sql`** regroupe tout ce qui reste à appliquer (card_type +
+formation_mode, avec la version finale de `finalize_invoice()`/`create_credit_note()` — pas de
+`CREATE OR REPLACE` répété deux fois pour la même fonction) : coller ce fichier en entier dans le
+SQL Editor du dashboard Supabase et l'exécuter. Il se termine par une vérification en lecture
+seule (doit afficher « OK » sur chaque ligne). Rejouable sans risque (colonnes en
+« add column if not exists », fonctions en « create or replace »).
+
+Tant que ce n'est pas appliqué : choisir « Débit » à l'écran de paiement, ou activer le mode
+Formation, ferait échouer `finalize_invoice()` avec une erreur Supabase (paramètre/colonne
+inconnu) — **ne pas déployer ces deux changements d'appli avant d'avoir appliqué la migration**.
+
+Les fichiers individuels `supabase/migrations/20260822_000034_card_type_credit_debit.sql` et
+`20260822_000035_formation_mode.sql` restent dans le repo pour l'historique des migrations
+(chacun applicable seul aussi, dans cet ordre) — le fichier mega ci-dessus est juste plus pratique
+à coller en un seul geste.

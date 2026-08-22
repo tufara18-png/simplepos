@@ -88,6 +88,7 @@ export async function submitMevTransaction({ restaurant, invoice, invoiceItems, 
     guestCount,
     replacesTransaction,
     signaturePreviousBase88: preced,
+    modeTransaction: invoice.mode_transaction,
   });
   const transActu = reqTrans.transActu;
 

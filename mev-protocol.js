@@ -159,6 +159,7 @@ export function buildReqTrans({
   replacesTransaction,
   offlineBatch = [],
   signaturePreviousBase88,
+  modeTransaction = 'OPE',
 }) {
   const sectActi = { abrvt: 'RBC', typServ: tableLabel ? 'TBL' : 'CMP' };
   if (tableLabel) sectActi.noTabl = String(tableLabel).slice(0, 5);
@@ -197,7 +198,10 @@ export function buildReqTrans({
     modPai: PAYMENT_METHOD_CODE[paymentMethod] || 'AUT',
     modImpr: DOCUMENT_TYPE_MOD_IMPR[documentType] || 'FAC',
     formImpr: 'PAP',
-    modTrans: 'OPE',
+    // SW-73 4.4.1.1.16: OPE (real activity) or FOR (Formation/practice) -- "peu importe le
+    // mode, toutes les transactions doivent être transmises au MEV-WEB", so this only changes
+    // the flag, never whether the request is sent.
+    modTrans: modeTransaction === 'FOR' ? 'FOR' : 'OPE',
     signa: {
       datActu: datTrans(Date.now()),
       // `actu` (this transaction's own signature) is filled in by the caller after building

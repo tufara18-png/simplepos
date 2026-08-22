@@ -33,7 +33,8 @@ Fonctions actives :
 - **note de crédit** (remboursement depuis l'historique) et **annulation de commande** avec reçu;
 - **verrouillage après inactivité** (5 min) : redemande le mot de passe de l'utilisateur en cours avant de continuer, sans perdre la commande active ni la session Supabase sous-jacente;
 - **distinction carte crédit/débit** au paiement (affecte le code MEV transmis, CRE ou DEB) — nécessite la migration `20260822_000034_card_type_credit_debit.sql`, pas encore appliquée en production;
-- **note de crédit et rapport de l'utilisateur transmis pour de vrai au MEV-WEB** en mode `live`, pas seulement imprimés localement.
+- **note de crédit et rapport de l'utilisateur transmis pour de vrai au MEV-WEB** en mode `live`, pas seulement imprimés localement;
+- **mode Formation** (Réglages) : transactions fictives pour s'exercer, réellement transmises au MEV-WEB (`modTrans FOR`) mais exclues du rapport de l'utilisateur, bannière permanente à l'écran tant qu'actif — nécessite la migration `20260822_000035_formation_mode.sql`.
 
 ## Démarrer
 
