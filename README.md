@@ -25,6 +25,7 @@ Fonctions actives :
 - chaîne fiscale en ajout seul (aucune modification/suppression possible par le staff une fois une facture, un paiement ou une tentative MEV écrits) avec numérotation séquentielle des factures par restaurant;
 - coordonnées de l'entreprise (nom légal, adresse, téléphone, numéros TPS/TVQ) configurables dans Réglages par le ou la propriétaire du compte, reprises sur l'addition et le reçu de fermeture;
 - mode de paiement **Parti sans payer**, duplicata interne depuis l'historique, rapport de l'utilisateur (sommaire annuel des ventes) imprimable depuis Réglages;
+- **transmission réelle au MEV-WEB de Revenu Québec** (mode `live`) : enrôlement du certificat depuis l'appareil (Keystore Android, ECDSA P-256), requêtes certificats/transaction/utilisateur signées et envoyées en mTLS, file hors ligne avec chaînage de signature — vérifié en direct contre l'environnement DEV de Revenu Québec (voir `docs/certification-readiness.md`); reste optionnel par restaurant via `app_settings.mev_mode` (`simulator` par défaut, `live`, `disabled`);
 - gestion par place à table (pivots), activable ou non dans Réglages : bouton **Client suivant** dans le ticket, séparateurs par place dans la liste, addition par place, impression de toutes les additions d'un coup, sélection de qui paie;
 - **article partagé** : une bouteille partagée entre plusieurs places est fractionnée au cent près (la somme des parts redonne toujours le montant exact), chaque personne paie sa part;
 - **mode démo** (Réglages) : simule l'impression à l'écran pour tester tout le flux sans imprimante physique. À ne jamais activer pendant un vrai service;
@@ -74,16 +75,17 @@ Le terminal reste indépendant du POS. Le client choisit son pourboire sur le te
 
 ## MEV-WEB
 
-Architecture actuelle :
+Deux transports derrière la même interface (`submitMev()`), choisis par restaurant via `app_settings.mev_mode` :
 
 ```text
 invoice
   ↓
-MevEnvelopeFactory
+submitMev()
   ↓
-MevController
-  ↓
-SimulatorTransport
+mev_mode ?
+  ├─ simulator (défaut) → mev-runtime.js / mev-simulator
+  ├─ live               → mev-live.js (réel, mTLS, signature native)
+  └─ disabled           → aucune transmission
   ↓
 mev_attempts
   ↓ trigger DB
@@ -96,19 +98,20 @@ impression / retry
 
 Tables principales :
 - `mev_devices`
+- `mev_partner_config`
 - `mev_transactions`
 - `mev_attempts`
 - `mev_receipts`
 
 États gérés : `pending`, `sending`, `accepted`, `retryable`, `rejected`, `failed`.
 
-Le simulateur supporte `accepted`, `rejected`, `retryable` et `timeout`. Le QR généré contient explicitement `SIMULATED-NOT-FISCAL` et ne prétend pas reproduire le format Revenu Québec.
+Le simulateur supporte `accepted`, `rejected`, `retryable` et `timeout`. Son QR contient explicitement `SIMULATED-NOT-FISCAL` et ne prétend pas reproduire le format Revenu Québec.
 
-Le mode production reste verrouillé. Pour rendre MEV réellement fiscal, il faudra remplacer `SimulatorTransport` par le transport officiel à partir des documents techniques, identifiants et certificats fournis par Revenu Québec. Aucun format privé ou certificat n'est inventé dans le dépôt.
+Le mode `live` (`mev-live.js`) construit le vrai JSON SW-73 (`mev-protocol.js`), le signe avec la clé ECDSA P-256 non exportable de l'appareil (Android Keystore) et l'envoie en mTLS via `MevProtocolPlugin`. Vérifié en direct contre l'environnement DEV de Revenu Québec (certificat émis, reçu de fermeture, pourboire, annulation, note de crédit, lot hors ligne — voir `docs/certification-readiness.md` et `docs/mev-architecture.md` pour le détail et les angles morts restants). N'a pas encore été essayé contre `ESSAI`/`PROD`, et Resto360 n'est pas encore un SEV certifié : `live` ne doit être activé que dans le cadre de la démarche de certification elle-même, jamais en service réel avant l'accusé de réception de Revenu Québec.
 
 ## Runtime MEV
 
-`mev-runtime.js` :
+`mev-runtime.js` (mode `simulator`) :
 - récupère les factures orphelines après une panne réseau;
 - retransmet les transactions `pending/retryable`;
 - applique un délai avant retry;
@@ -116,6 +119,8 @@ Le mode production reste verrouillé. Pour rendre MEV réellement fiscal, il fau
 - garde les erreurs et réponses;
 - imprime les reçus acceptés non encore imprimés;
 - affiche l'état MEV dans Réglages et une alerte visible lorsqu'une intervention est nécessaire.
+
+`mev-offline-queue.js` (mode `live`) : file IndexedDB de transactions déjà signées, chaînées entre elles (`signa.preced`) même hors ligne, envoyées en un lot `transLot` à la reconnexion. Non testée contre une vraie coupure réseau sur appareil Android — voir `docs/certification-readiness.md`.
 
 ## Tests
 
@@ -145,4 +150,4 @@ GitHub Actions exécute les mêmes vérifications sur `main`.
 
 ## Limite réglementaire
 
-Resto360 n'est **pas encore un SEV certifié**. Le simulateur et ses reçus servent à valider le workflow applicatif. La certification réelle dépend des spécifications privées et de l'environnement de certification MEV-WEB fournis par Revenu Québec.
+Resto360 n'est **pas encore un SEV certifié**, même si le transport MEV-WEB réel (mode `live`) a été vérifié en direct contre le DEV de Revenu Québec. Ce qui manque n'est plus principalement technique : les cas d'essai SW-77 et la déclaration SW-78 doivent encore être exécutés et transmis officiellement via le dossier partenaire, puis suivis de la démonstration à Revenu Québec. Voir `docs/certification-readiness.md` pour le détail complet, y compris les angles morts techniques encore non vérifiés en direct.

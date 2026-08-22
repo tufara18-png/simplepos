@@ -2,9 +2,9 @@
 
 ## Avant de tester
 
-- forcer le rechargement de la PWA après le déploiement du cache `resto360-v18`;
-- utiliser le mode démo pour l’interface ou une imprimante reçu configurée pour le flux réel;
-- garder le mode MEV en simulation.
+- resynchroniser les assets Android après toute modification d'un fichier web (`npm run android:sync`) puis reconstruire l'app (`cd android && ./gradlew installDebug`);
+- utiliser le mode démo (Réglages) pour l'interface ou une imprimante reçu configurée pour le flux réel;
+- garder `app_settings.mev_mode` en `simulator` pour ces scénarios — ne passer en `live` que dans le cadre de la démarche de certification elle-même (voir `certification-readiness.md`), jamais pour du test terrain courant.
 
 ## Scénarios
 
@@ -37,7 +37,7 @@
 ### File locale
 
 1. Ouvrir l’application en ligne pour amorcer les données.
-2. Couper la connexion Supabase ou Internet tout en gardant le bridge local disponible.
+2. Couper la connexion Internet (l'impression réseau vers l'imprimante ESC/POS reste locale, indépendante de Supabase).
 3. Imprimer un document.
 4. Vérifier l’indicateur de document en attente dans **Gestion → Archives fiscales locales**.
 5. Rétablir la connexion et cliquer **Synchroniser le registre**.
@@ -50,4 +50,6 @@
 
 ## Résultat attendu
 
-Aucun écran ne doit présenter la référence locale, le hash ou le QR simulé comme un identifiant officiel de Revenu Québec. Le transport officiel reste `blocked_sw73`.
+En mode `simulator`, aucun écran ne doit présenter la référence locale, le hash ou le QR simulé comme un identifiant officiel de Revenu Québec.
+
+Ce plan ne couvre pas le mode `live` (transmission réelle) : cette exhaustivité-là reste à construire séparément, avec un harnais qui simule les réponses réelles de Revenu Québec plutôt que de risquer des envois non nécessaires en DEV.

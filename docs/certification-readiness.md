@@ -1,5 +1,7 @@
 # Resto360 — préparation certification MEV-WEB
 
+Le SW-73 (guide technique, format JSON, algorithme de signature) est maintenant en main et le protocole réel a été vérifié en direct contre l'environnement DEV de Revenu Québec (voir `mev-architecture.md` et l'en-tête de `mev-protocol.js` pour le détail exact de ce qui a été confirmé). Ce document distingue donc maintenant trois états : ce qui est implémenté, ce qui est implémenté mais pas encore vérifié en direct, et ce qui reste réellement bloqué (démarche officielle de certification, pas technique).
+
 ## Déjà implémenté
 
 - séparation POS / couche MEV;
@@ -33,6 +35,12 @@
 - **note de crédit** (`create_credit_note()`) : facture négative référençant l'originale via `replaces_invoice_id`, une seule par facture, impossible sur une note de crédit;
 - **annulation de commande** (`void_order()`) : annule les articles impayés restants, journalise le motif et la liste des articles dans `fiscal_events`, imprime un reçu « COMMANDE ANNULÉE ».
 
+- **protocole MEV-WEB réel** (`mev-protocol.js`, `mev-live.js`) : requêtes `certificats`, `transaction` et `utilisateur` construites selon le SW-73/SW-73.C/SW-77, signées ECDSA P-256 par le Keystore Android natif (clé non exportable), envoyées en mTLS via `MevProtocolPlugin` — vérifié en direct contre le DEV de Revenu Québec (reçu de fermeture simple, avec pourboire, annulation en cours, note de crédit, lot hors ligne à deux transactions) : voir `mev-architecture.md` pour le détail exact et ce qui reste non vérifié (`docAdr` non standard, `clint`, versements, `ESTM`/`SOUM`/`ADDI`);
+- **enrôlement du certificat** (`mev-enrollment.js`) : génère la paire de clés sur l'appareil, construit le CSR (ordre RDN CN/O/SN/OU/GN/L/S/C, corps base64 sur une seule ligne — deux détails non évidents à la lecture du guide, découverts en confrontant au DEV réel) et envoie la requête `certificats` directement depuis l'appareil Android, pas via une fonction Supabase (`mev-certificats` reste dans le dépôt comme référence « mode serveur », explicitement marquée à ne pas utiliser pour de vraies requêtes : elle perd l'en-tête IDVERSI en route vers Revenu Québec pour une raison encore inexpliquée);
+- **requête « utilisateur »** (SW-77 §3.3) : envoyée à la création du compte propriétaire depuis l'assistant de démarrage; jamais vérifiée en direct contre le DEV (forme lue directement des exemples du SW-77, pas testée), contrairement à `certificats`/`transaction`;
+- **file hors ligne pour le mode réel** (`mev-offline-queue.js`) : signe chaque transaction à la création, chaîne `signa.preced` localement même hors ligne, envoie un lot `transLot` à la reconnexion — jamais testée sur un appareil Android en coupure réseau réelle;
+- **trois modes MEV par restaurant** (`app_settings.mev_mode`) : `simulator` (défaut, aucune transmission réelle), `live` (transmission réelle à l'environnement configuré dans `mev_partner_config`), `disabled` (aucune transmission, aucun document fiscal).
+
 ## Limites connues restantes
 
 **Sous-déclaration par paiement partiel.** Un encaissement peut être inférieur au solde, c'est un paiement partiel légitime. La commande reste alors ouverte avec son solde impayé, elle ne disparaît pas. Pour l'escamoter il faut ensuite annuler le reste, ce qui écrit une entrée `order_voided` dans `fiscal_events` avec le motif et les articles. C'est donc traçable plutôt que bloqué, ce qui est le compromis normal : un vrai départ sans paiement doit rester possible.
@@ -41,6 +49,8 @@
 
 **Remboursement partiel.** `create_credit_note()` rembourse la facture au complet. Un remboursement partiel (un seul plat sur une facture de quatre) demanderait de choisir les lignes à créditer.
 
+**Mention imprimée incorrecte en mode `live`.** `sw76-readiness.js` (`injectLocalReference`) ajoute systématiquement « DOCUMENT NON CERTIFIÉ — TRANSPORT MEV OFFICIEL NON CONFIGURÉ » sur tout document fiscal imprimé, sans regarder si la transaction a réellement été transmise à Revenu Québec en mode `live`. Le reçu affiché à l'écran (`showReceipt` dans `app-v2.js`) distingue déjà correctement simulateur/réel via `f.certified`, mais le texte envoyé à l'imprimante ne porte pas encore cette distinction — un vrai reçu MEV pourrait sortir de l'imprimante avec une mention qui le dit non configuré. À corriger avant tout test réel en mode `live`.
+
 ## Ce que le SW-76 (guide public) exige concrètement
 
 Le SW-76 (*Renseignements généraux sur l'adaptation des SEV*, version 2025-06) est public, contrairement au SW-73 (le guide technique détaillé avec le format JSON exact) qui est réservé aux partenaires inscrits. Points qui touchent directement le code de Resto360 :
@@ -48,14 +58,14 @@ Le SW-76 (*Renseignements généraux sur l'adaptation des SEV*, version 2025-06)
 - un « serveur distant » (notre `mev-gateway`) ne peut ni créer, ni modifier, ni supprimer de transactions, seulement les acheminer au MEV-WEB, notre architecture actuelle respecte déjà cette contrainte;
 - numéro de transaction unique par jour civil (notre numérotation par restaurant, jamais réutilisée, satisfait déjà cette exigence);
 - toute transaction qui en modifie une autre (note de crédit, correction, reçu de fermeture après addition) doit inclure une référence à la transaction d'origine : colonne `invoices.replaces_invoice_id` en place, reste à la remplir quand les notes de crédit existeront;
-- signature numérique unique par requête, bloqué sur les certificats Revenu Québec (déjà su);
+- signature numérique unique par requête : implémentée et vérifiée en direct (ECDSA P-256, voir plus bas);
 - documents obligatoires : reçu de fermeture, note de crédit, reproduction. Facultatifs : soumission, estimation, addition. Le **duplicata**, le **rapport de l'utilisateur** et la **note de crédit** sont maintenant produits; reste la **reproduction** destinée à la clientèle;
 - conservation 6 ans incluant toutes les modifications/annulations, pas seulement l'état final, c'est exactement ce que verrouille la chaîne fiscale en ajout seul;
 - journalisation des modifications post-facture, des messages d'erreur MEV-WEB avec leur code de retour, et de l'activation/désactivation du mode hors ligne : couverte par `fiscal_events`.
 
 ## Confirmations de fournisseurs déjà certifiés
 
-Le SW-73 étant verrouillé, ces détails viennent de fournisseurs POS déjà certifiés WEB-SRM qui documentent publiquement leur implémentation (Lightspeed Restaurant K-Series en premier lieu). À prendre comme un signal fort, pas une garantie, puisque ce n'est pas Revenu Québec qui les publie.
+Ces deux sections datent d'avant l'obtention du SW-73 et restent comme trace de la recherche faite à l'aveugle; le SW-73 réel prime désormais partout où il contredit ces indices. Ces détails viennent de fournisseurs POS déjà certifiés WEB-SRM qui documentent publiquement leur implémentation (Lightspeed Restaurant K-Series en premier lieu). À prendre comme un signal fort, pas une garantie, puisque ce n'est pas Revenu Québec qui les publie.
 
 - **Mode de paiement « Parti sans payer »** exigé de tout SEV : implémenté.
 - **Flux d'annulation de commande obligatoire** : implémenté (`void_order()` plus reçu « COMMANDE ANNULÉE » listant les articles annulés).
@@ -78,43 +88,42 @@ Ces points viennent de chaînes de caractères trouvées dans le binaire d'un SE
 
 Réglages → Mode démo : simule l'impression à l'écran (le contenu du reçu s'affiche dans une fenêtre au lieu d'être envoyé à une imprimante réseau) pour permettre de dérouler tout le flux (commande → addition → paiement → MEV simulé → reçu → parti sans payer → duplicata → rapport de l'utilisateur) sans aucun matériel physique. Purement un interrupteur d'affichage côté client, `app_settings.demo_mode`, aucune table ni politique RLS fiscale touchée. À ne jamais activer pendant un vrai service : une bannière reste affichée tant que le mode est actif pour éviter toute confusion.
 
-## Dépendances officielles encore nécessaires
+## Dépendances officielles : où on en est
 
-Ces éléments ne doivent pas être inventés dans le code. Ils seront branchés dans `mev-gateway` lorsque Revenu Québec les fournira :
+1. inscription comme partenaire et enregistrement du produit Resto360 — **fait** (`mev_partner_config`, numéro de dossier, IDPARTN/IDSEV/IDVERSI réels);
+2. guide de démarche de certification SW-79 et documents techniques applicables — **reçus**;
+3. caractéristiques/cas d'essai attribués au produit — reçus (SW-77); **pas encore exécutés officiellement** via le dossier partenaire Revenu Québec;
+4. paramètres exacts du protocole MEV-WEB — **connus et vérifiés en direct** pour `certificats`/`transaction`/`utilisateur` (voir `mev-architecture.md`);
+5. formats officiels des requêtes/réponses et documents fiscaux — **vérifiés en direct** pour reçu de fermeture (simple, pourboire, annulation, note de crédit) et lot hors ligne; non vérifiés : `docAdr` non standard, `clint`, versements, `ESTM`/`SOUM`/`ADDI`;
+6. format officiel du QR — **toujours inconnu**, seul le domaine (`qr.mev-web.ca`) est confirmé par une source tierce non officielle;
+7. règles exactes de signature — **confirmées** : ECDSA P-256, deux concaténations différentes pour l'en-tête (`SIGNATRANSM`, Tableau 22) et le corps (`signa.actu`), chaînage `signa.preced`, CSR à corps base64 non wrappé avec un ordre RDN spécifique (CN/O/SN/OU/GN/L/S/C);
+8. environnement de certification — **DEV confirmé et utilisé**, `ESSAI`/`PROD` pas encore essayés;
+9. code d'autorisation et certificat numérique du serveur distant — sans objet : Resto360 enrôle et signe depuis l'appareil Android lui-même, pas via un serveur distant;
+10. exécution et réussite des cas d'essai puis démonstration à Revenu Québec — **reste à faire**, c'est la seule étape qui n'est pas technique : elle passe par le dossier partenaire Revenu Québec (voir « Historique des cas d'essai » dans le portail), pas par du code.
 
-1. inscription comme partenaire et enregistrement du produit Resto360;
-2. guide de démarche de certification SW-79 et documents techniques applicables;
-3. caractéristiques/cas d'essai attribués au produit;
-4. paramètres exacts du protocole MEV-WEB;
-5. formats officiels des requêtes/réponses et documents fiscaux;
-6. format officiel du QR;
-7. règles exactes de signature (probablement ECDSA, voir observations ci-dessus, à confirmer), numérotation, corrections, annulations, notes de crédit et retransmission;
-8. environnement de certification;
-9. code d'autorisation et certificat numérique du serveur distant lorsque requis;
-10. exécution et réussite des cas d'essai puis démonstration à Revenu Québec.
+## Ce qui restait strictement bloqué sur le SW-73 — maintenant débloqué
 
-## Ce qui reste strictement bloqué sur le SW-73
+Les quatre inconnues qui bloquaient tout progrès technique sont résolues :
 
-Tout le reste est préparable sans être partenaire. Ces quatre points ne le sont pas, parce qu'inventer un format ici serait pire que de ne rien faire :
+1. **structure JSON exacte** des requêtes certificats / utilisateur / transaction / document, et les en-têtes attendus — connue (SW-73/SW-73.C), implémentée dans `mev-protocol.js`, vérifiée en direct pour certificats/transaction, non vérifiée en direct pour utilisateur;
+2. **codes de retour** du MEV-WEB et leur signification — partiellement connus, seulement ceux rencontrés en pratique jusqu'ici (succès, rejets liés au CSR/en-têtes pendant la mise au point) sont confirmés; la liste complète « à retransmettre en lot » vs « rejeté » n'a pas été testée exhaustivement;
+3. **algorithme et encodage exacts de la signature numérique** — confirmé ECDSA P-256, format IEEE P1363 (pas DER/ASN.1), CSR vérifié en direct;
+4. **contenu exact du QR** — toujours inconnu, seule la base du lien (`qr.mev-web.ca`) est confirmée par une source tierce non officielle (voir « Observations d'un SEV concurrent » ci-dessus).
 
-1. **structure JSON exacte** des requêtes de type certificats / utilisateur / transaction / document, et les en-têtes attendus;
-2. **codes de retour** du MEV-WEB et leur signification (lesquels signifient « à retransmettre en lot » plutôt que « rejeté »);
-3. **algorithme et encodage exacts de la signature numérique** (les indices pointent vers ECDSA, à confirmer) et le format du CSR d'enrôlement;
-4. **contenu exact du QR** au-delà du fait qu'il pointe vers `qr.mev-web.ca`.
-
-Quand ces quatre points seront connus, le travail restant se limite à écrire `RevenuQuebecTransport` derrière `mev-gateway` : le POS, la file de retransmission, le journal, les documents et les mentions n'auront pas à changer.
+Ce qui reste donc à faire n'est plus « écrire le transport une fois les specs connues » (c'est fait, dans `mev-live.js`) mais : élargir la couverture vérifiée (types de transactions non testés, format du QR, codes de retour exhaustifs), tester la file hors ligne sur un vrai appareil, corriger la mention imprimée incorrecte en mode `live` (voir « Limites connues restantes »), puis compléter la démarche officielle SW-77/SW-78/SW-79 dans le dossier partenaire.
 
 ## Passage en production
 
-Le frontend ne doit pas être modifié pour passer du simulateur au transport officiel. Le point stable est :
+Le transport réel existe déjà et n'a pas demandé de modifier le frontend au-delà de `submitMev()` :
 
 ```text
-POS → mev-gateway → Transport
-                    ├─ simulator (actuel)
-                    └─ revenu-quebec (à brancher avec les spécifications officielles)
+POS → submitMev() → Transport (app_settings.mev_mode)
+                    ├─ simulator (défaut)
+                    ├─ live (mev-live.js, réel, mTLS + signature native)
+                    └─ disabled
 ```
 
-Le mode production doit rester verrouillé tant que le transport officiel n'est pas configuré et validé.
+`live` a été vérifié contre le DEV de Revenu Québec, pas contre `ESSAI` ni `PROD`. Passer un restaurant en `live` avant d'avoir terminé les cas d'essai officiels (SW-77) et reçu la certification transmettrait de vraies transactions à Revenu Québec sans que Resto360 soit un SEV certifié — à ne faire que dans le cadre de la démarche de certification elle-même, jamais en service réel avant l'accusé de réception de Revenu Québec.
 
 ## Sources
 

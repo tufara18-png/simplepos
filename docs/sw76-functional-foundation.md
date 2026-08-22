@@ -32,18 +32,20 @@ Les tickets cuisine sont exclus du registre fiscal.
 
 ## Statut du numéro imprimé
 
-La mention `RÉFÉRENCE LOCALE SP-...` est un identifiant Resto360 unique et traçable. Ce n'est ni le numéro retourné par Revenu Québec ni une preuve de certification. Le document indique explicitement que le transport MEV officiel n'est pas configuré.
+La mention `RÉFÉRENCE LOCALE SP-...` est un identifiant Resto360 unique et traçable. Ce n'est ni le numéro retourné par Revenu Québec ni une preuve de certification.
 
-## Éléments volontairement non inventés
+**Bug connu** : le document imprimé porte toujours la mention « TRANSPORT MEV OFFICIEL NON CONFIGURÉ » (`sw76-readiness.js`, `injectLocalReference`), même quand `app_settings.mev_mode` vaut `live` et que la transaction a réellement été transmise à Revenu Québec — cette fonction ne regarde pas le résultat MEV de la facture. Le reçu affiché à l'écran (`showReceipt`) distingue déjà correctement simulateur/réel via `fiscal.certified`; le texte envoyé à l'imprimante ne le fait pas encore. À corriger avant tout test réel en mode `live`.
 
-Le mode production demeure verrouillé tant que les documents partenaires ne fournissent pas :
+## État des dépendances SW-73
 
-- les structures JSON et en-têtes exacts;
-- les certificats, la CSR et la gestion des clés privées;
-- l'algorithme et l'encodage exacts de signature;
-- les codes de retour et règles de retransmission;
-- le contenu officiel du QR;
-- les modèles finaux du SW-73.B.
+Le SW-73 et sa famille (SW-73.A à SW-73.D) sont maintenant en main, et le protocole réel a été vérifié en direct contre le DEV de Revenu Québec — voir `mev-architecture.md` et `certification-readiness.md` pour le détail. Ce qui reste réellement non résolu :
+
+- le contenu officiel du QR (seul le domaine `qr.mev-web.ca` est confirmé, par une source non officielle);
+- la mise en page exacte attendue par SW-73.B, document par document (la mécanique — mentions, numérotation, révisions — est en place, mais n'a pas été confrontée modèle par modèle);
+- la liste exhaustive des codes de retour et règles de retransmission (seuls ceux rencontrés en pratique sont confirmés);
+- l'exécution officielle des cas d'essai SW-77 et la déclaration SW-78 dans le dossier partenaire, qui est une démarche administrative et non un développement.
+
+Le mode `live` reste un choix explicite par restaurant (`app_settings.mev_mode`), pas encore le défaut, tant que ces points et les cas d'essai officiels ne sont pas complétés.
 
 ## Validation minimale
 
