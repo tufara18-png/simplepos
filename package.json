@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node tests.mjs"
+    "test": "node tests.mjs",
+    "android:sync": "npx cap copy android && node scripts/fix-android-assets.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
