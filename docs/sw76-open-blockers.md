@@ -27,8 +27,8 @@ Resto360 reste non certifié, mais la plupart des blocages techniques de ce docu
 - la file hors ligne en mode `live` (`mev-offline-queue.js`) n'a pas été testée contre une vraie coupure réseau sur un appareil Android, ni contre le redémarrage/la réinstallation de l'app entre la mise en file et l'envoi;
 - un lot rejeté (non « à réessayer ») par Revenu Québec reste actuellement en file indéfiniment sans alerte visible au-delà d'un toast au prochain essai de reconnexion.
 
-## Bug connu à corriger avant tout test réel
+## Bug corrigé
 
-`sw76-readiness.js` marque tout document imprimé « TRANSPORT MEV OFFICIEL NON CONFIGURÉ », y compris en mode `live` quand la transaction a réellement été transmise. Voir « Limites connues restantes » dans `certification-readiness.md`.
+`sw76-readiness.js` marquait tout document imprimé « TRANSPORT MEV OFFICIEL NON CONFIGURÉ », y compris en mode `live` quand la transaction avait réellement été transmise. Corrigé — voir « Mention imprimée en mode `live` — corrigé » dans `certification-readiness.md` pour le détail et la limite restante sur le chemin de réimpression automatique.
 
 Le registre ajouté (SW-76) conserve déjà les documents, références, empreintes, états hors ligne et erreurs de façon à pouvoir raccorder les points ci-dessus sans réécrire le POS.

@@ -10,6 +10,16 @@ let syncing=false;
 let nextPrintContext=null;
 let decorateTimer=null;
 
+// Other modules (app-v2.js, mev-runtime.js) call this right before printing so the /print
+// interceptor below knows whether this specific document's MEV transaction was actually
+// transmitted live -- it has no other way to see that, since it only sees the printed text.
+// Exposed on window rather than imported: ui-shell.js deliberately loads this module only
+// after pivots.js/demo-mode.js so its window.fetch wrapper ends up outermost; a static
+// import from app-v2.js (which loads first) would make this module wrap fetch too early and
+// change that layering. A plain global sidesteps the module graph entirely.
+function setNextPrintContext(ctx){nextPrintContext=ctx}
+window.__resto360SetPrintContext=setNextPrintContext;
+
 function session(){try{return JSON.parse(localStorage.getItem('resto360-session')||'null')}catch{return null}}
 function authHeaders(extra={}){const s=session();return{apikey:CFG.supabasePublishableKey||'',Authorization:`Bearer ${s?.access_token||''}`,'Content-Type':'application/json',...extra}}
 function isDemo(){return window.RESTO360_DEMO===true||document.body.classList.contains('preview-demo')}
@@ -73,7 +83,13 @@ function inferDocumentType(text=''){
   if(v.includes('PAIEMENT REÇU')||v.includes('PAIEMENT RECU')||v.includes('PARTI SANS PAYER'))return'closing_receipt';
   return null;
 }
-function injectLocalReference(text,reference){if(String(text).includes(reference))return String(text);const note=`RÉFÉRENCE LOCALE ${reference}\nDOCUMENT NON CERTIFIÉ — TRANSPORT MEV OFFICIEL NON CONFIGURÉ`;
+// certified=true means this specific document's MEV transaction was actually signed and
+// transmitted to Revenu Québec (mev_mode "live", see mev-live.js's `certified` field) --
+// possibly to the DEV/ESSAI environment, not necessarily PROD. "DOCUMENT NON CERTIFIÉ" stays
+// true either way (Resto360 itself isn't a certified SEV yet), but claiming the transport
+// isn't configured would be false once a transmission actually went through.
+function injectLocalReference(text,reference,mevStatus={}){if(String(text).includes(reference))return String(text);
+  const note=mevStatus.certified?`RÉFÉRENCE LOCALE ${reference}\nDOCUMENT NON CERTIFIÉ (SEV EN COURS DE CERTIFICATION) — TRANSMIS AU MEV-WEB, ENVIRONNEMENT ${mevStatus.environment||'INCONNU'}`:`RÉFÉRENCE LOCALE ${reference}\nDOCUMENT NON CERTIFIÉ — TRANSPORT MEV OFFICIEL NON CONFIGURÉ`;
   const lines=String(text||'').split('\n');const heading=lines.findIndex(line=>/FACTURE|PAIEMENT|NOTE DE CR|COPIE DU COMMER|RAPPORT DE L|COMMANDE ANNUL|REPRODUCTION/i.test(line));
   lines.splice(heading>=0?heading+1:Math.min(1,lines.length),0,note);return lines.join('\n')}
 function documentPayload({id,reference,type,text,context={}}){return{
@@ -117,7 +133,7 @@ window.fetch=async function(input,init={}){
   let body;try{body=typeof init.body==='string'?JSON.parse(init.body):init.body}catch{return previousFetch(input,init)}
   const type=inferDocumentType(body?.text);if(!type)return previousFetch(input,init);
   const reference=nextLocalReference(),id=uuid(),context=nextPrintContext||{};nextPrintContext=null;
-  const printedText=injectLocalReference(body.text,reference);const nextInit={...init,body:JSON.stringify({...body,text:printedText})};
+  const printedText=injectLocalReference(body.text,reference,{certified:context.certified===true,environment:context.environment||null});const nextInit={...init,body:JSON.stringify({...body,text:printedText})};
   let response;
   try{response=await previousFetch(input,nextInit)}catch(err){await logEvent('print_error',{invoice_id:context.invoiceId||null,order_id:context.orderId||null,error_message:String(err.message||err),payload:{document_type:type,local_reference:reference}});throw err}
   if(!response.ok){await logEvent('print_error',{invoice_id:context.invoiceId||null,order_id:context.orderId||null,error_code:String(response.status),error_message:'Impression refusée',payload:{document_type:type,local_reference:reference}});return response}
@@ -183,4 +199,4 @@ function scheduleDecorate(){clearTimeout(decorateTimer);decorateTimer=setTimeout
 function start(){injectStyles();void initOutbox().then(()=>syncOutbox());document.addEventListener('click',e=>{const b=e.target.closest('[data-reproduction]');if(b){e.preventDefault();printCustomerReproduction(b.dataset.reproduction).catch(err=>toast(err.message,'error'))}},true);new MutationObserver(scheduleDecorate).observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});window.addEventListener('online',()=>void syncOutbox());document.addEventListener('visibilitychange',()=>{if(!document.hidden)void syncOutbox()});setInterval(()=>void syncOutbox(),15000);decorate();void syncOutbox()}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
 
-export{inferDocumentType,injectLocalReference};
+export{inferDocumentType,injectLocalReference,setNextPrintContext};

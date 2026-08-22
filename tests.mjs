@@ -63,7 +63,7 @@ function inferDocumentType(text=''){
   if(v.includes('PAIEMENT REÇU')||v.includes('PAIEMENT RECU')||v.includes('PARTI SANS PAYER'))return'closing_receipt';
   return null;
 }
-function injectLocalReference(text,reference){if(String(text).includes(reference))return String(text);const note=`RÉFÉRENCE LOCALE ${reference}\nDOCUMENT NON CERTIFIÉ — TRANSPORT MEV OFFICIEL NON CONFIGURÉ`;const lines=String(text||'').split('\n');const heading=lines.findIndex(line=>/FACTURE|PAIEMENT|NOTE DE CR|COPIE DU COMMER|RAPPORT DE L|COMMANDE ANNUL|REPRODUCTION/i.test(line));lines.splice(heading>=0?heading+1:Math.min(1,lines.length),0,note);return lines.join('\n')}
+function injectLocalReference(text,reference,mevStatus={}){if(String(text).includes(reference))return String(text);const note=mevStatus.certified?`RÉFÉRENCE LOCALE ${reference}\nDOCUMENT NON CERTIFIÉ (SEV EN COURS DE CERTIFICATION) — TRANSMIS AU MEV-WEB, ENVIRONNEMENT ${mevStatus.environment||'INCONNU'}`:`RÉFÉRENCE LOCALE ${reference}\nDOCUMENT NON CERTIFIÉ — TRANSPORT MEV OFFICIEL NON CONFIGURÉ`;const lines=String(text||'').split('\n');const heading=lines.findIndex(line=>/FACTURE|PAIEMENT|NOTE DE CR|COPIE DU COMMER|RAPPORT DE L|COMMANDE ANNUL|REPRODUCTION/i.test(line));lines.splice(heading>=0?heading+1:Math.min(1,lines.length),0,note);return lines.join('\n')}
 
 assert.equal(inferDocumentType('CUISINE\nTable 1'),null);
 assert.equal(inferDocumentType('FACTURE ORIGINALE\nTable 1'),'addition_original');
@@ -77,6 +77,14 @@ const traced=injectLocalReference('Restaurant\nFACTURE ORIGINALE\nTOTAL 10 $','S
 assert.match(traced,/RÉFÉRENCE LOCALE SP-20260817-ABC123-00001/);
 assert.equal((traced.match(/SP-20260817-ABC123-00001/g)||[]).length,1);
 assert.equal(injectLocalReference(traced,'SP-20260817-ABC123-00001'),traced);
+
+// A live-mode transaction that was actually transmitted must not be stamped "transport not
+// configured" -- that claim would be false. "DOCUMENT NON CERTIFIÉ" stays (Resto360 itself
+// isn't a certified SEV yet), but it must say the transport was used, not that it's missing.
+assert.doesNotMatch(injectLocalReference('Restaurant\nPAIEMENT REÇU\nTOTAL 10 $','SP-1',{certified:false}),/TRANSMIS AU MEV-WEB/);
+const liveReceipt=injectLocalReference('Restaurant\nPAIEMENT REÇU\nTOTAL 10 $','SP-1',{certified:true,environment:'DEV'});
+assert.match(liveReceipt,/TRANSMIS AU MEV-WEB, ENVIRONNEMENT DEV/);
+assert.doesNotMatch(liveReceipt,/TRANSPORT MEV OFFICIEL NON CONFIGURÉ/);
 
 // mev-protocol.js: real SW-73 field builders, checked against the worked example printed in
 // SW-76 4.4.1 (Michel Untel enr., 1 item at 4,80 $, TPS 0,24 $, TVQ 0,48 $, total 5,52 $).

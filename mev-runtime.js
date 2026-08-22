@@ -297,6 +297,11 @@ async function printReceiptRow(rid, receipt) {
   const printer = await receiptPrinter(rid);
   if (!printer?.ip_address) throw new Error('Imprimante reçu non configurée');
   const text = await receiptText(receipt);
+  // is_simulated also covers a genuine live send to a non-production Revenu Québec
+  // environment (DEV/ESSAI), not just the internal simulator -- see mirror_mev_attempt_to_runtime()
+  // -- so "certified" here undersells a real DEV transmission, but it is never wrong in the
+  // other direction: it only claims a transmission happened once is_simulated is false.
+  window.__resto360SetPrintContext?.({ invoiceId: receipt.invoice_id, certified: receipt.is_simulated === false });
   const r = await fetch('/print', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

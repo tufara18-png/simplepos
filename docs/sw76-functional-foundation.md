@@ -34,7 +34,7 @@ Les tickets cuisine sont exclus du registre fiscal.
 
 La mention `RÉFÉRENCE LOCALE SP-...` est un identifiant Resto360 unique et traçable. Ce n'est ni le numéro retourné par Revenu Québec ni une preuve de certification.
 
-**Bug connu** : le document imprimé porte toujours la mention « TRANSPORT MEV OFFICIEL NON CONFIGURÉ » (`sw76-readiness.js`, `injectLocalReference`), même quand `app_settings.mev_mode` vaut `live` et que la transaction a réellement été transmise à Revenu Québec — cette fonction ne regarde pas le résultat MEV de la facture. Le reçu affiché à l'écran (`showReceipt`) distingue déjà correctement simulateur/réel via `fiscal.certified`; le texte envoyé à l'imprimante ne le fait pas encore. À corriger avant tout test réel en mode `live`.
+**Corrigé** : le document imprimé portait toujours la mention « TRANSPORT MEV OFFICIEL NON CONFIGURÉ » (`sw76-readiness.js`, `injectLocalReference`), même en mode `live` avec une transaction réellement transmise. `injectLocalReference` accepte maintenant le statut réel (`certified`/`environment`), transmis par `app-v2.js`/`mev-runtime.js` via `window.__resto360SetPrintContext` juste avant l'impression — voir `certification-readiness.md` pour le détail et la limite restante sur le chemin de réimpression automatique.
 
 ## État des dépendances SW-73
 
