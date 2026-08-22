@@ -32,8 +32,8 @@ function injectStyles(){
 .demo-print-card{background:#fff;border-radius:14px;max-width:360px;width:100%;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
 .demo-print-card h3{margin:0 0 10px;font-size:14px;color:#7c2d12}
 .demo-print-card pre{white-space:pre-wrap;font-family:ui-monospace,monospace;font-size:12px;background:#f7f7f8;border-radius:8px;padding:12px;max-height:50vh;overflow:auto;margin:0 0 12px}
-.demo-print-card button{width:100%;border:0;background:#4f13ff;color:#fff;border-radius:10px;padding:10px;font-weight:750;cursor:pointer}
-.demo-entry{margin-top:8px;background:#f0ecff!important;color:#4f13ff!important;border:1px solid #dcd4ff!important}
+.demo-print-card button{width:100%;border:0;background:var(--accent);color:#fff;border-radius:10px;padding:10px;font-weight:750;cursor:pointer}
+.demo-entry{margin-top:8px;background:var(--accent-tint)!important;color:var(--accent)!important;border:1px solid var(--accent-tint-strong)!important}
 .demo-entry-note{text-align:center;font-size:11px;color:#7a7d86;margin:8px 0 0}
 .preview-demo .topbar{padding-top:28px;height:auto;min-height:46px}
 .preview-seat-bar,.preview-pay-seats{display:flex;gap:8px;align-items:center;overflow:auto;margin:0 0 14px}
@@ -41,7 +41,7 @@ function injectStyles(){
 .preview-seat.active,.preview-pay-seat.active{background:#202126;color:#fff}
 .preview-seat-label{font-size:12px;color:#737780;white-space:nowrap}
 .preview-seat-divider{display:flex;justify-content:space-between;align-items:center;padding:10px 2px 6px;border-bottom:1px solid #e7e7ea;margin-top:6px}
-.preview-seat-divider button{border:0;background:transparent;color:#4f13ff;font-size:12px;font-weight:750}
+.preview-seat-divider button{border:0;background:transparent;color:var(--accent);font-size:12px;font-weight:750}
 .preview-seat-group select{display:block;margin-top:5px;border:0;background:#f4f4f5;border-radius:7px;padding:3px 6px;font-size:11px;color:#666}
 .preview-demo #savePrinters,.preview-demo #saveCompanyInfo,.preview-demo #generateReportBtn,.preview-demo #newProductBtn,.preview-demo #newReservation,.preview-demo #scanCost,.preview-demo #newCost{opacity:.45;pointer-events:none}
 `;

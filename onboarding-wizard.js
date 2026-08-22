@@ -325,7 +325,7 @@ function installStyles() {
     .wizard-shell{display:grid;grid-template-columns:230px minmax(0,1fr);gap:20px;align-items:start}
     .wizard-steps{display:grid;gap:6px;position:sticky;top:0}
     .wizard-step-item{display:flex;align-items:center;gap:10px;text-align:left;border:1px solid var(--line);background:#fff;border-radius:12px;padding:10px 12px;font-weight:600;color:#565a63}
-    .wizard-step-item.active{border-color:var(--accent);background:#fff6ee;color:var(--ink)}
+    .wizard-step-item.active{border-color:var(--accent);background:var(--accent-tint);color:var(--ink)}
     .wizard-step-item.done .wizard-step-num{background:var(--good);color:#fff}
     .wizard-step-num{width:22px;height:22px;border-radius:50%;background:#e4e4e7;color:#565a63;display:grid;place-items:center;font-size:12px;font-weight:800;flex:0 0 auto}
     .wizard-panel{background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px;min-height:320px}
@@ -335,7 +335,7 @@ function installStyles() {
     .wizard-explainer{margin:0 0 14px;padding-left:20px;display:grid;gap:6px;font-size:14px}
     .wizard-mode-choices{display:grid;gap:12px}
     .wizard-mode-choice{text-align:left;border:2px solid var(--line);background:#fff;border-radius:14px;padding:14px 16px;display:grid;gap:4px}
-    .wizard-mode-choice.active{border-color:var(--accent);background:#fff6ee}
+    .wizard-mode-choice.active{border-color:var(--accent);background:var(--accent-tint)}
     .wizard-mode-choice span{font-size:13px;color:var(--muted)}
     .wizard-summary{list-style:none;margin:0 0 16px;padding:0;display:grid;gap:8px;font-size:15px}
     #onboardingStepBody label,#wizardStepBody label{display:grid;gap:6px;font-size:12px;font-weight:750;color:#3f4249;margin-bottom:10px}
