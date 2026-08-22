@@ -2,6 +2,8 @@
 
 Le SW-73 (guide technique, format JSON, algorithme de signature) est maintenant en main et le protocole réel a été vérifié en direct contre l'environnement DEV de Revenu Québec (voir `mev-architecture.md` et l'en-tête de `mev-protocol.js` pour le détail exact de ce qui a été confirmé). Ce document distingue donc maintenant trois états : ce qui est implémenté, ce qui est implémenté mais pas encore vérifié en direct, et ce qui reste réellement bloqué (démarche officielle de certification, pas technique).
 
+Les documents source complets (SW-72 à SW-79) sont dans `docs/rq-source/`. Le mappage cas par cas (SW-78 puis SW-77) contre l'état réel du code est dans `docs/certification-test-cases.md` — c'est la référence à jour pour savoir ce qui manque encore, ce document-ci restant plus général.
+
 ## Déjà implémenté
 
 - séparation POS / couche MEV;
