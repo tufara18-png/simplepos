@@ -124,6 +124,34 @@ dans la déclaration plutôt que de construire la fonctionnalité).
    d'item (030/530), annulation réellement transmise au MEV (004/504 — `void_order()` ne crée pas
    de transaction référençable, contrairement à `create_credit_note()`).
 
+## Accès multi-utilisateur (readiness interne, pas un cas d'essai numéroté)
+
+Jusqu'à cette passe, rien dans l'appli ne pouvait jamais insérer une deuxième ligne dans
+`restaurant_members` — confirmé par une revue complète du dépôt (le seul résultat était un
+commentaire). `ensureRestaurant()` donne un nouveau restaurant vide, en tant que propriétaire, à
+tout compte qui n'en a pas encore un : un deuxième compte qui s'inscrivait aujourd'hui se
+retrouvait avec son propre restaurant vide au lieu de rejoindre le vrai. Les politiques RLS
+elles-mêmes étaient déjà correctes (toute table à portée de membre accepte n'importe quelle ligne
+`restaurant_members`, sans distinction de rôle) — le vrai trou était l'absence totale de chemin
+côté client pour créer cette ligne, la clé anon ne permettant pas de chercher l'identifiant
+`auth.users` d'un tiers.
+
+Corrigé dans `20260822_000036_staff_accounts.sql` :
+- `add_restaurant_member(p_email, p_role)` — `SECURITY DEFINER`, réservé à la ou au propriétaire
+  du restaurant (`restaurants.owner_id = auth.uid()`), cherche le compte cible par courriel dans
+  `auth.users` et fait l'upsert dans `restaurant_members` (`manager` ou `staff`, jamais `owner`, et
+  impossible de s'auto-inviter);
+- `list_restaurant_members()` / `remove_restaurant_member(p_user_id)` — mêmes garde-fous, pour
+  afficher et retirer l'accès depuis Réglages → Personnel;
+- `mev_partner_config` passait en lecture strictement réservée au ou à la propriétaire — corrigé
+  en lecture pour tout membre (nécessaire pour que le personnel puisse transmettre de vraies
+  transactions MEV en mode `live`), écriture toujours réservée au ou à la propriétaire.
+
+UI : nouvelle carte « Personnel » dans Réglages (visible seulement au ou à la propriétaire du
+compte) — courriel + rôle pour donner accès, liste des comptes avec accès et bouton retirer.
+Validé contre un serveur Supabase simulé fidèle (mêmes règles, pas des mocks vides) : isolation
+inter-restaurants, auto-invitation refusée, rôle `owner` refusé, retrait immédiat de l'accès.
+
 ## Migrations en attente
 
 Cette session n'a aucun accès réseau vers Supabase (ni l'API de gestion, ni l'API REST du
@@ -131,16 +159,15 @@ projet — bloqué par la politique réseau de l'environnement, pas un problème
 confirmé après un deuxième essai avec le jeton fourni) : impossible d'appliquer une migration
 directement d'ici, contrairement à la session précédente sur le Mac de l'utilisateur.
 
-**`docs/migration-mega-2026-08-22.sql`** regroupe tout ce qui reste à appliquer (card_type +
-formation_mode, avec la version finale de `finalize_invoice()`/`create_credit_note()` — pas de
-`CREATE OR REPLACE` répété deux fois pour la même fonction) : coller ce fichier en entier dans le
-SQL Editor du dashboard Supabase et l'exécuter. Il se termine par une vérification en lecture
-seule (doit afficher « OK » sur chaque ligne). Rejouable sans risque (colonnes en
-« add column if not exists », fonctions en « create or replace »).
+**`docs/migration-mega-2026-08-22.sql`** (card_type + formation_mode) — **appliquée**, confirmée
+par l'utilisateur.
 
-Tant que ce n'est pas appliqué : choisir « Débit » à l'écran de paiement, ou activer le mode
-Formation, ferait échouer `finalize_invoice()` avec une erreur Supabase (paramètre/colonne
-inconnu) — **ne pas déployer ces deux changements d'appli avant d'avoir appliqué la migration**.
+**`supabase/migrations/20260822_000036_staff_accounts.sql`** (accès multi-utilisateur, voir
+ci-dessus) — **pas encore appliquée**. À coller dans le SQL Editor du dashboard Supabase.
+Rejouable sans risque (fonctions en `create or replace`, politiques en `drop policy if exists`
+avant `create policy`). Tant que ce n'est pas appliqué : la carte « Personnel » dans Réglages
+échouera avec une erreur Supabase (fonction `add_restaurant_member` inconnue) — pas de régression
+sur le reste de l'appli en attendant.
 
 Les fichiers individuels `supabase/migrations/20260822_000034_card_type_credit_debit.sql` et
 `20260822_000035_formation_mode.sql` restent dans le repo pour l'historique des migrations

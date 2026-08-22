@@ -35,6 +35,7 @@ Fonctions actives :
 - **distinction carte crédit/débit** au paiement (affecte le code MEV transmis, CRE ou DEB) — nécessite la migration `20260822_000034_card_type_credit_debit.sql`, pas encore appliquée en production;
 - **note de crédit et rapport de l'utilisateur transmis pour de vrai au MEV-WEB** en mode `live`, pas seulement imprimés localement;
 - **mode Formation** (Réglages) : transactions fictives pour s'exercer, réellement transmises au MEV-WEB (`modTrans FOR`) mais exclues du rapport de l'utilisateur, bannière permanente à l'écran tant qu'actif — nécessite la migration `20260822_000035_formation_mode.sql`.
+- **accès multi-utilisateur** : le ou la propriétaire du compte peut donner accès à d'autres comptes déjà créés (Réglages → Personnel, rôle staff ou gérant) — nécessite la migration `20260822_000036_staff_accounts.sql`, pas encore appliquée en production.
 
 ## Démarrer
 
