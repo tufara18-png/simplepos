@@ -224,21 +224,39 @@ async function refreshPayPivots(){const screen=$('#payScreen');if(!screen?.class
 // server who did not use Client suivant during the order. It only writes
 // seat_number; paying still goes through the normal per-seat selection, so no
 // second fiscal path exists.
-let splitDraft=null,splitBucket=1;
+let splitDraft=null,splitBucket=1,splitSharePending=null;const splitShareSeats=new Set();
 function openSplitScreen(){
   const ids=$$('#payItems [data-payitem]').map(x=>x.dataset.payitem).filter(Boolean);
   if(!ids.length){toast('Rien à séparer','error');return}
   splitDraft=new Map(ids.map(id=>[id,Number(seatCache.get(id)?.seat_number||1)]));
-  splitBucket=1;
+  splitBucket=1;splitSharePending=null;splitShareSeats.clear();
   renderSplitScreen();
 }
-function closeSplitScreen(){splitDraft=null;$('#pivotSplitModal')?.remove()}
+function closeSplitScreen(){splitDraft=null;splitSharePending=null;splitShareSeats.clear();$('#pivotSplitModal')?.remove()}
 function renderSplitScreen(){
   if(!splitDraft)return;
   let el=$('#pivotSplitModal');
   if(!el){el=document.createElement('div');el.id='pivotSplitModal';el.className='modal show';document.body.append(el);
     el.onclick=e=>{if(e.target===el)closeSplitScreen()};}
   const buckets=Math.max(splitBucket,...[...splitDraft.values()]);
+
+  // Fractionally sharing one article between several clients, from this same end-of-meal
+  // screen instead of only at order time (the ⇄ on the ticket) -- picking clients reuses the
+  // same "Client N" numbering already on screen, since confirmSplitScreen already repurposes
+  // that numbering as the real seat_number split_order_item expects.
+  if(splitSharePending){
+    const it=seatCache.get(splitSharePending)||{};
+    const pills=Array.from({length:buckets},(_,i)=>i+1).map(n=>
+      `<button type="button" class="pivot-pill ${splitShareSeats.has(n)?'active':''}" data-share-bucket-pick="${n}">Client ${n}</button>`).join('');
+    el.innerHTML=`<div class="modal-card"><div class="modal-title-row"><div><span class="eyebrow">Paiement</span><h2>Partager « ${esc(it.name||'Article')} »</h2><p class="muted">Choisissez au moins deux clients qui se partagent cet article.</p></div><button class="icon-btn" data-share-back>×</button></div>
+      <div class="pivot-pills">${pills}</div>
+      <div class="button-row"><button type="button" class="btn primary" data-share-bucket-confirm>Partager (${splitShareSeats.size})</button><button type="button" class="btn" data-share-back>Annuler</button></div></div>`;
+    el.querySelectorAll('[data-share-bucket-pick]').forEach(b=>b.onclick=()=>{const n=Number(b.dataset.shareBucketPick);splitShareSeats.has(n)?splitShareSeats.delete(n):splitShareSeats.add(n);renderSplitScreen()});
+    el.querySelectorAll('[data-share-back]').forEach(b=>b.onclick=()=>{splitSharePending=null;splitShareSeats.clear();renderSplitScreen()});
+    el.querySelector('[data-share-bucket-confirm]').onclick=()=>confirmSplitShare().catch(e=>toast(e.message,'error'));
+    return;
+  }
+
   const totalFor=n=>[...splitDraft.entries()].filter(([,s])=>s===n)
     .reduce((sum,[id])=>{const it=seatCache.get(id);return sum+Number(it?.unit_price||0)*(Number(it?.quantity||1)-Number(it?.paid_quantity||0))},0);
   const tabs=Array.from({length:buckets},(_,i)=>i+1).map(n=>{
@@ -248,17 +266,38 @@ function renderSplitScreen(){
   const rows=[...splitDraft.entries()].map(([id,seat])=>{
     const it=seatCache.get(id)||{};
     const qty=Number(it.quantity||1)-Number(it.paid_quantity||0);
-    return `<button type="button" class="pivot-split-row ${seat===splitBucket?'mine':''}" data-split-item="${id}"><span class="pivot-split-name">${esc(it.name||'Article')}</span><span class="pivot-split-seat">C${seat}</span><span class="pivot-split-amt">${money(Number(it.unit_price||0)*qty)}</span></button>`;
+    const shared=shareSize(it);
+    // Already-shared or already-paid rows can't be shared again from here either -- same
+    // guard as the ticket's own ⇄ button.
+    const canShare=!shared&&Number(it.paid_quantity||0)===0;
+    const row=`<button type="button" class="pivot-split-row ${seat===splitBucket?'mine':''}" data-split-item="${id}"><span class="pivot-split-name">${esc(it.name||'Article')}${shared?` (part 1/${shared})`:''}</span><span class="pivot-split-seat">C${seat}</span><span class="pivot-split-amt">${money(Number(it.unit_price||0)*qty)}</span></button>`;
+    return canShare?`<div class="pivot-split-row-wrap">${row}<button type="button" class="pivot-split-share" data-split-share="${id}" title="Partager entre plusieurs clients">⇄</button></div>`:row;
   }).join('');
-  el.innerHTML=`<div class="modal-card"><div class="modal-title-row"><div><span class="eyebrow">Paiement</span><h2>Séparer l'addition</h2><p class="muted">Choisissez un client, puis touchez ses articles.</p></div><button class="icon-btn" data-split-close>×</button></div>
+  el.innerHTML=`<div class="modal-card"><div class="modal-title-row"><div><span class="eyebrow">Paiement</span><h2>Séparer l'addition</h2><p class="muted">Choisissez un client, puis touchez ses articles. Le ⇄ partage un article entre plusieurs clients.</p></div><button class="icon-btn" data-split-close>×</button></div>
     <div class="pivot-pills">${tabs}<button type="button" class="pivot-pill" data-bucket-add>+ Client</button></div>
     <div class="pivot-split-list">${rows}</div>
     <div class="button-row"><button class="btn primary" data-split-confirm>Confirmer</button><button class="btn" data-split-close>Annuler</button></div></div>`;
   el.querySelectorAll('[data-bucket]').forEach(b=>b.onclick=()=>{splitBucket=Number(b.dataset.bucket);renderSplitScreen()});
   el.querySelector('[data-bucket-add]').onclick=()=>{splitBucket=Math.max(splitBucket,...[...splitDraft.values()])+1;renderSplitScreen()};
   el.querySelectorAll('[data-split-item]').forEach(b=>b.onclick=()=>{splitDraft.set(b.dataset.splitItem,splitBucket);renderSplitScreen()});
+  el.querySelectorAll('[data-split-share]').forEach(b=>b.onclick=e=>{e.stopPropagation();splitSharePending=b.dataset.splitShare;splitShareSeats.clear();splitShareSeats.add(splitDraft.get(splitSharePending)||splitBucket);renderSplitScreen()});
   el.querySelectorAll('[data-split-close]').forEach(b=>b.onclick=closeSplitScreen);
   el.querySelector('[data-split-confirm]').onclick=()=>confirmSplitScreen().catch(e=>toast(e.message,'error'));
+}
+// Sharing is immediate (same as the ticket's own ⇄), not deferred to "Confirmer": the item
+// stops existing as one row the moment this succeeds, so there is nothing left in splitDraft
+// for the whole-item reassignment flow to apply afterward. Closing and reloading is simpler
+// and safer than trying to keep the draft consistent with a row that no longer exists.
+async function confirmSplitShare(){
+  if(!splitSharePending)return;
+  if(splitShareSeats.size<2)throw new Error('Choisissez au moins deux clients');
+  const id=splitSharePending,seats=[...splitShareSeats].sort((a,b)=>a-b);
+  splitSharePending=null;splitShareSeats.clear();
+  await rest('rpc/split_order_item',{method:'POST',body:{p_order_item_id:id,p_seats:seats}});
+  toast(`Article partagé entre ${seats.length} clients`);
+  closeSplitScreen();
+  window.dispatchEvent(new CustomEvent('resto360-reload'));
+  scheduleRefresh();
 }
 async function confirmSplitScreen(){
   if(!splitDraft)return;
@@ -321,6 +360,9 @@ function injectStyles(){if($('#pivotStyles'))return;const style=document.createE
 .pivot-split-list{display:grid;gap:6px;margin-top:12px;max-height:46vh;overflow:auto}
 .pivot-split-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:10px;width:100%;text-align:left;border:1px solid var(--line,#e4e4e7);background:#fff;border-radius:10px;padding:11px 12px}
 .pivot-split-row.mine{border-color:var(--accent-tint-strong);background:var(--accent-tint)}
+.pivot-split-row-wrap{display:flex;align-items:center;gap:6px}
+.pivot-split-row-wrap>.pivot-split-row{flex:1;min-width:0}
+.pivot-split-share{border:0;background:var(--accent-tint);color:var(--accent);border-radius:999px;padding:11px 12px;font-size:14px;font-weight:850;flex:0 0 auto}
 .pivot-split-name{font-weight:750;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pivot-split-seat{background:var(--accent-tint);color:var(--accent);border-radius:999px;padding:3px 8px;font-size:11px;font-weight:850}
 .pivot-split-amt{font-weight:750;font-variant-numeric:tabular-nums}
