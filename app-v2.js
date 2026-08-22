@@ -69,7 +69,7 @@ function renderPaySummary(){const sub=selectedSubtotal(),tx=calcTax(sub),due=cur
 function splitAmounts(total,n){const cents=Math.round(total*100),base=Math.floor(cents/n),rem=cents-base*n;return Array.from({length:n},(_,i)=>(base+(i>=n-rem?1:0))/100)}
 function renderSplit(n){if(!Number.isInteger(n)||n<2||n>30){splitTarget=null;$('#splitBox').innerHTML='';renderPaySummary();return}const parts=splitAmounts(selectedGross(),n);splitTarget=parts[0];$('#splitBox').innerHTML=`<div class="split-preview">${parts.map((p,i)=>`<div><span>Part ${i+1}</span><strong>${money(p)}</strong></div>`).join('')}</div>`;renderPaySummary()}
 function updateTerminalPreview(){const due=currentDue(),v=Number($('#terminalTotal')?.value||0),tip=settings?.tips_enabled&&v>=due?round2(v-due):0;$('#terminalTip').textContent=v?`Pourboire détecté : ${money(tip)}`:'Entrez le total affiché sur le terminal.'}
-function updateCashPreview(){const due=currentDue(),received=Number($('#cashReceived')?.value||0),tip=settings?.tips_enabled?Math.max(0,Number($('#cashTip')?.value||0)):0,change=round2(received-due-tip);$('#cashChange').textContent=received?`Monnaie : ${money(Math.max(0,change))}`:'Entrez le montant reçu.'}
+function updateCashPreview(){const due=currentDue(),received=Number($('#cashReceived')?.value||0),tip=settings?.tips_enabled?Math.max(0,Number($('#cashTip')?.value||0)):0,change=round2(received-due-tip);$('#cashChange').textContent=!received?'Entrez le montant reçu.':change<-0.009?`Montant manquant : ${money(-change)}`:`Monnaie : ${money(Math.max(0,change))}`}
 async function submitMev(invoice,liveContext){
   if(settings?.mev_mode==='disabled')return{environment:'DISABLED',status:'disabled',certified:false};
   if(settings?.mev_mode==='live'){
