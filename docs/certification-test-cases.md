@@ -1,5 +1,38 @@
 # Cas d'essai MEV-WEB — SW-78 puis SW-77
 
+## Retest complet du 2026-08-22 (après la migration multi-utilisateur)
+
+Retest de bout en bout de l'appli réelle (pas de simulation isolée) via un serveur Supabase
+simulé fidèle (mêmes politiques RLS et fonctions RPC que les vraies migrations, pas des mocks
+vides) piloté par Playwright dans un vrai navigateur : inscription/connexion, table → commande →
+cuisine → porte d'impression de l'addition → paiement comptant, note de crédit, annulation de
+commande, mode Formation (bannière + exclusion du rapport de l'utilisateur), et l'accès
+multi-utilisateur de bout en bout (propriétaire invite un compte, ce compte voit tout de suite le
+même restaurant). Tout passe. Deux bogues réels trouvés et corrigés au passage :
+
+- **Le bouton Payer n'imposait pas réellement l'impression de l'addition d'abord.** Le README
+  documentait déjà ce comportement (SW-76 4.4) mais `goPay` ouvrait l'écran de paiement
+  directement, sans jamais appeler `printAddition()` — seul le bouton séparé « Imprimer
+  l'addition » le faisait. Corrigé : `goPay` attend maintenant `printAddition()` et n'ouvre
+  l'écran de paiement qu'en cas de succès.
+- **Le mode démo (Réglages) ne pouvait pas être utilisé sans avoir déjà configuré une imprimante.**
+  Il est documenté comme testant « tout le flux ... sans imprimante physique », mais
+  `printText()` refusait avec « IP imprimante manquante » avant même d'atteindre l'appel réseau
+  que le mode démo intercepte — donc inutilisable sur un tout nouveau restaurant, exactement le
+  cas d'usage visé. Corrigé : `printText()` laisse passer en mode démo (`window.RESTO360_DEMO`,
+  déjà utilisé ailleurs dans le code) même sans IP configurée.
+
+Deux constats de moindre priorité, non corrigés (pas des bogues fiscaux) :
+- `config.js` contient de vraies clés Supabase (publishable + JWT anon), commitées dans
+  l'historique git. Attendu et sans risque réel — ce sont les clés conçues par Supabase pour être
+  publiques (la sécurité vient de RLS, pas du secret de la clé) — mais si l'équipe préfère éviter
+  de les voir traîner dans git, il faudrait les faire lire depuis une variable d'environnement au
+  moment du build plutôt que depuis un fichier commité.
+- La liste des tables/RPC catalogées (réservations, coûts d'exploitation, clients) n'est pas
+  encore répliquée dans le serveur Supabase simulé utilisé pour ces tests — sans impact sur les
+  cas d'essai MEV-WEB eux-mêmes, seulement sur la couverture de test des fonctionnalités de
+  gestion annexes.
+
 Sources complètes dans `docs/rq-source/`. Ce document mappe chaque cas déclaré sur le dossier
 partenaire de Resto360 (secteur Restaurant, modes d'opération **Serveur** et **SEV**) à l'état
 réel du code, pour prioriser le travail restant.
