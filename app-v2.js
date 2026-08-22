@@ -46,7 +46,12 @@ async function removeItem(id){const i=orderItems.find(x=>x.id===id);if(!i)return
 async function updateGuests(){const n=Number(prompt('Nombre de clients',activeOrder.guest_count));if(!Number.isInteger(n)||n<1)return;await rest(`orders?id=eq.${activeOrder.id}`,{method:'PATCH',body:{guest_count:n,updated_at:new Date().toISOString()}});activeOrder.guest_count=n;renderOrder()}
 const printer=role=>printers.find(p=>p.role===role&&p.enabled);
 async function savePrinter(role,ip){const p=printer(role);if(p){const d=(await rest(`printers?id=eq.${p.id}`,{method:'PATCH',body:{ip_address:ip,port:9100,enabled:!!ip}}))[0];Object.assign(p,d)}else if(ip)printers.push((await rest('printers',{method:'POST',body:{restaurant_id:restaurant.id,name:role==='kitchen'?'Cuisine':'Reçu',role,ip_address:ip,port:9100,enabled:true}}))[0])}
-async function printText(text,role){const p=printer(role);if(!p?.ip_address)throw new Error(`IP imprimante ${role==='kitchen'?'cuisine':'reçu'} manquante`);const r=await fetch('/print',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ip:p.ip_address,port:p.port||9100,text,cut:true})});if(!r.ok)throw new Error('Imprimante inaccessible');return r.json()}
+// Mode démo (demo-mode.js) is documented as testing "tout le flux ... sans imprimante physique",
+// but its window.fetch wrapper only intercepts the /print call itself -- it never runs unless we
+// get past this guard first. window.RESTO360_DEMO (the same flag sw76-readiness.js already reads
+// via isDemo(), set by demo-mode.js's setBannerVisible()) lets demo mode through without a
+// configured IP; a real print still requires one.
+async function printText(text,role){const p=printer(role);if(!p?.ip_address&&!window.RESTO360_DEMO)throw new Error(`IP imprimante ${role==='kitchen'?'cuisine':'reçu'} manquante`);const r=await fetch('/print',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ip:p?.ip_address||'demo',port:p?.port||9100,text,cut:true})});if(!r.ok)throw new Error('Imprimante inaccessible');return r.json()}
 async function sendKitchen(){const items=itemsFor(activeOrder.id).filter(i=>i.kitchen_status==='new');if(!items.length)return toast('Rien de nouveau');const table=tables.find(t=>t.id===activeOrder.table_id);
   // A shared item is one physical dish split into several fractional order_items rows (one
   // per seat, see split_order_item) -- the kitchen must see it once, not once per seat, or it
