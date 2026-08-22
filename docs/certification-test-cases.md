@@ -76,9 +76,9 @@ dans la déclaration plutôt que de construire la fonctionnalité).
 | 570 | Valider les numéros de taxes | Lié à FO-108 |
 | 002/502 | Gérer les comptes utilisateurs | Implémenté, jamais vérifié en direct |
 | 003/503 | Reproduire une facture (reproduction/duplicata) | Couvert |
-| 004/504 | Annuler une transaction | DB fait, transmission MEV réelle manquante (voir FO-115) |
+| 004/504 | Annuler une transaction | DB fait (`void_order()`), transmission MEV réelle manquante — `void_order()` ne crée aucune facture/transaction référençable, contrairement à `create_credit_note()` ; reste à construire (voir FO-115) |
 | 005/505 | Corriger un reçu de fermeture | À vérifier |
-| 006/506 | Produire une note de crédit | DB fait, transmission MEV réelle manquante (voir FO-116) |
+| 006/506 | Produire une note de crédit | **Fait** — `createCreditNote()` transmet maintenant une vraie transaction MEV (typTrans RFER, items à prix inversement égal, `refs[]` vers la facture originale) |
 | 007/507 | Parti sans payer | Couvert |
 | 008/508 | Utiliser le mode Formation | **Gap**, lié à FO-117 |
 | 009/509 | Factures en mode Hors ligne | Partiel, jamais testé sur appareil réel |
@@ -101,7 +101,7 @@ dans la déclaration plutôt que de construire la fonctionnalité).
 | 030/530 | Précisions pour un item (prix 0 $ ou absent) | **Gap** — pas de notion de « précision » distincte du nom d'article |
 | 031/531 | Sous-secteur d'activité | Couvert (Restaurant, statique) |
 | 037/537 | Transmettre une commande | À examiner (probablement lié à l'envoi cuisine, pas encore relié au MEV) |
-| 103/603 | Rapport de l'utilisateur transmis au MEV-WEB (typDoc RUT) | **Gap** — actuellement impression locale seulement, aucune requête « document » construite (nouveau type de requête à ajouter dans `mev-protocol.js`/`mev-live.js`) |
+| 103/603 | Rapport de l'utilisateur transmis au MEV-WEB (typDoc RUT) | **Fait** (`buildReqDocumentRut`, `submitMevUserReport`) — reconstruction à partir du guide, non vérifiée en direct (le Tableau 28 a été mal extrait du PDF), voir la note dans `mev-protocol.js` |
 | 105/605 | Déclaration pour un tiers habituel | Sans objet (tiers/TRP) |
 | 999.999 | Cas de clôture | À examiner en dernier |
 
@@ -115,7 +115,25 @@ dans la déclaration plutôt que de construire la fonctionnalité).
    de changer le stockage de session dans 13 fichiers, à faire avec un appareil réel pour vérifier),
    FO-127 (avertir avant échéance du certificat), FO-107/108/110/111/120 à vérifier plutôt qu'à
    construire (voir tableau ci-dessus).
-3. Puis fermer les gaps SW-77 confirmés : rapport utilisateur transmis en vrai (103/603), mode
-   Formation (008/508), transférer un item (022/522), grouper des factures (020/520), précisions
-   d'item (030/530), distinction carte crédit/débit, annulation et note de crédit réellement
-   transmises au MEV (004/504, 006/506).
+3. Fait dans cette passe : rapport utilisateur transmis en vrai (103/603), note de crédit
+   transmise en vrai (006/506), distinction carte crédit/débit (modPai CRE/DEB — migration
+   `20260822_000034_card_type_credit_debit.sql`, **pas encore appliquée à Supabase**, voir
+   « Migrations en attente » ci-dessous).
+4. Encore ouverts : mode Formation (008/508, FO-117), transférer un item (022/522), grouper des
+   factures (020/520), précisions d'item (030/530), annulation réellement transmise au MEV
+   (004/504 — `void_order()` ne crée pas de transaction référençable, contrairement à
+   `create_credit_note()`).
+
+## Migrations en attente
+
+Cette session n'a pas d'accès réseau vers Supabase (ni l'API de gestion, ni l'API REST du
+projet — bloqué par la politique réseau de l'environnement, pas un problème de jeton d'accès) :
+impossible d'appliquer une migration directement d'ici, contrairement à la session précédente sur
+le Mac de l'utilisateur. À appliquer manuellement (SQL Editor du dashboard Supabase, ou CLI) :
+
+- `supabase/migrations/20260822_000034_card_type_credit_debit.sql` — ajoute `payments.card_type`
+  et remplace `finalize_invoice()` par une version identique avec un paramètre `p_card_type` en
+  plus (copiée du fichier existant, pas reconstruite de mémoire). Tant que ce n'est pas appliqué,
+  choisir « Débit » à l'écran de paiement ferait échouer `finalize_invoice()` avec une erreur
+  Supabase (paramètre inconnu) — **ne pas déployer le changement d'appli avant d'avoir appliqué
+  cette migration**.

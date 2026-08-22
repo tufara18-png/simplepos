@@ -145,6 +145,22 @@ assert.doesNotMatch(liveReceipt,/TRANSPORT MEV OFFICIEL NON CONFIGURÉ/);
   assert.equal(signInput.length,expectedPrefix.length+14,'DR is a 14-digit AAAAMMJJHHmmSS timestamp');
 }
 
+// Revenu Québec's registered product declares "Carte de crédit" and "Carte de débit" as
+// distinct payment modes (modPai CRE/DEB) -- paymentMethod 'card_credit'/'card_debit' must map
+// to the right one, and the older bare 'card' still falls back to CRE for any caller that
+// hasn't been updated to pass the split value.
+{
+  const restaurant={legal_name:'Michel Untel enr.',name:'Michel Untel enr.',gst_number:'123456789RT0001',qst_number:'1234567890TQ0001'};
+  const device={certificate_thumbprint_sha1:'ABCDEF'};
+  const partnerConfig={dossier_number:'AA9999',no_tps:restaurant.gst_number,no_tvq:restaurant.qst_number,id_sev:'0000000000000001',id_versi:'0000000000000002',cod_certif:'FOB201999999',id_partn:'0000000000000003',versi:'1.0',versi_parn:'0'};
+  const invoice={invoice_number:1,id:'inv-1',created_at:'2026-08-22T12:00:00Z',subtotal:10,gst:0.5,qst:1,total:11.5,tip_amount:0};
+  const items=[{name:'Article',quantity:1,line_total:10}];
+  const modPaiFor=(paymentMethod)=>buildReqTrans({restaurant,device,partnerConfig,invoice,invoiceItems:items,paymentMethod,documentType:'closing_receipt',signaturePreviousBase88:'='.repeat(88)}).reqTrans.transActu.modPai;
+  assert.equal(modPaiFor('card_credit'),'CRE');
+  assert.equal(modPaiFor('card_debit'),'DEB');
+  assert.equal(modPaiFor('card'),'CRE');
+}
+
 // SW-78 FO-132: a transLot batch over the 256 ko cap must be split into consecutive,
 // oldest-first groups that each fit, not sent as one oversized request.
 {

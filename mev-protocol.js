@@ -109,7 +109,9 @@ export function buildMont({ subtotal, gst, qst, total, roundingAdjustment = 0, a
 
 const PAYMENT_METHOD_CODE = {
   cash: 'ARG',
-  card: 'CRE', // Resto360 does not distinguish credit/debit terminals yet; DEB exists for when it does.
+  card: 'CRE', // fallback when the credit/debit distinction (card_credit/card_debit) isn't known
+  card_credit: 'CRE',
+  card_debit: 'DEB',
   other: 'AUT',
   left_without_paying: 'SOB',
 };

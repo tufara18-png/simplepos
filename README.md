@@ -31,7 +31,9 @@ Fonctions actives :
 - **mode démo** (Réglages) : simule l'impression à l'écran pour tester tout le flux sans imprimante physique. À ne jamais activer pendant un vrai service;
 - **montants de vente calculés côté serveur** : `finalize_invoice()` recalcule sous-total, taxes et total depuis la commande réelle; le POS ne peut plus dicter le montant enregistré;
 - **note de crédit** (remboursement depuis l'historique) et **annulation de commande** avec reçu;
-- **verrouillage après inactivité** (5 min) : redemande le mot de passe de l'utilisateur en cours avant de continuer, sans perdre la commande active ni la session Supabase sous-jacente.
+- **verrouillage après inactivité** (5 min) : redemande le mot de passe de l'utilisateur en cours avant de continuer, sans perdre la commande active ni la session Supabase sous-jacente;
+- **distinction carte crédit/débit** au paiement (affecte le code MEV transmis, CRE ou DEB) — nécessite la migration `20260822_000034_card_type_credit_debit.sql`, pas encore appliquée en production;
+- **note de crédit et rapport de l'utilisateur transmis pour de vrai au MEV-WEB** en mode `live`, pas seulement imprimés localement.
 
 ## Démarrer
 
