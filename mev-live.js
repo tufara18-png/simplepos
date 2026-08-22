@@ -7,7 +7,7 @@
 // MevKeystore (anything but the Android wrapper today), gets a clear "not available" result,
 // never a silently-invented fiscal outcome.
 
-import { buildReqTrans, buildTransactionSignatureInput, buildHeaders, buildSignatureInput, endpointFor, interpretCodRetour } from './mev-protocol.js';
+import { buildReqTrans, buildTransactionSignatureInput, buildHeaders, buildSignatureInput, buildReqUtil, endpointFor, interpretCodRetour } from './mev-protocol.js';
 import { enqueueSignedTransaction, effectivePreced, flushQueue, queueLength } from './mev-offline-queue.js';
 
 const CFG = window.RESTO360_CONFIG || {};
@@ -147,6 +147,64 @@ export async function submitMevTransaction({ restaurant, invoice, invoiceItems, 
     qr_payload: null, // still blocked on the real QR encryption key -- see docs/certification-readiness.md
     raw: data,
   };
+}
+
+/**
+ * SW-77 §3.3: "Si vous ajoutez ou supprimez un compte utilisateur sur votre SEV... une requête
+ * de type «utilisateur» doit être transmise au MEV-WEB" -- a general SEV obligation, not just
+ * a certification checkbox. Call with modif:'AJO' when an account is created, 'SUP' when
+ * removed. gstNumber/qstNumber are optional and only sent when validating the exploitant's tax
+ * numbers alongside the account (SW-77 cas 570) -- normally just the very first account.
+ *
+ * Not wired to the offline queue: this is an administrative confirmation, not a fiscal
+ * transaction with a signature chain to preserve, so there is nothing to queue in order.
+ * Unlike submitMevTransaction, this has never been exercised live -- the request/response
+ * shape here is read directly from SW-77 §3.3.2's worked examples, not proven against the
+ * real DEV endpoint.
+ */
+export async function submitMevUserAccount({ restaurant, modif, userName, gstNumber = null, qstNumber = null }) {
+  if (!window.Resto360Mev?.isAndroidNative?.()) return notAvailable('Transmission réelle disponible seulement dans l’appli Android.');
+
+  const { device, partnerConfig } = await loadDeviceAndConfig(restaurant.id);
+  if (!device?.id_apprl || device.certificate_status !== 'active') return notAvailable('Aucun certificat MEV actif -- complétez l’enrôlement dans Réglages.');
+  if (!partnerConfig?.id_sev || !partnerConfig?.id_partn || !partnerConfig?.authorization_code) return notAvailable('Inscription partenaire incomplète -- complétez Réglages avant de transmettre.');
+
+  // AJO adds an account; sending it twice for the same person on a re-save (e.g. editing the
+  // address later) would look like a second "add" to Revenu Québec, not an update. Check
+  // recent history for this exact modif+userName before sending again -- client-side, since
+  // this device's own request volume is small enough that filtering server-side on a jsonb
+  // field isn't worth the risk of getting the query syntax wrong untested.
+  if (modif === 'AJO') {
+    const recent = await api(`mev_partner_requests?restaurant_id=eq.${restaurant.id}&request_type=eq.utilisateur&select=request_body,response_status&order=created_at.desc&limit=20`);
+    const alreadySent = (recent || []).some((r) => r.response_status >= 200 && r.response_status < 300 && r.request_body?.modif === 'AJO' && r.request_body?.nomUtil === String(userName).trim());
+    if (alreadySent) return { environment: partnerConfig.environment || 'DEV', certified: true, status: 'accepted', already_sent: true };
+  }
+
+  const effectivePartnerConfig = { ...partnerConfig, no_tps: restaurant.gst_number, no_tvq: restaurant.qst_number, versi_parn: partnerConfig.versi_parn || '0' };
+  const headers = buildHeaders({ environment: partnerConfig.environment || 'DEV', device, partnerConfig: effectivePartnerConfig });
+  const url = endpointFor('utilisateur', null, headers.ENVIRN);
+  const { reqUtil } = buildReqUtil({ modif, userName, gstNumber, qstNumber });
+
+  let response;
+  try {
+    // SW-77 cas 570's own note ("le certificat utilisé doit être celui obtenu à l'étape 04 du
+    // cas d'essais 500") ties this request to the device's certificate -- so it is sent mTLS
+    // the same way as /transaction, even though this has not been directly confirmed live.
+    response = await window.Resto360Mev.sendRequest({ url, headers, body: JSON.stringify({ reqUtil }), keyAlias: DEVICE_ALIAS, certificatePem: device.certificate_pem });
+  } catch (networkError) {
+    return { environment: headers.ENVIRN, certified: true, status: 'retryable', error_message: String(networkError?.message || networkError) };
+  }
+
+  const status = Number(response.status);
+  const data = JSON.parse(response.body || '{}');
+  const ok = status >= 200 && status < 300;
+  await api('mev_partner_requests', { method: 'POST', prefer: 'return=minimal', body: {
+    restaurant_id: restaurant.id, device_id: device.id, request_type: 'utilisateur',
+    environment: headers.ENVIRN, request_headers: headers, request_body: reqUtil,
+    response_status: status, response_body: data, error_code: ok ? null : String(status),
+  } });
+
+  return { environment: headers.ENVIRN, certified: true, status: ok ? 'accepted' : 'rejected', raw: data };
 }
 
 /**

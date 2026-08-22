@@ -309,6 +309,20 @@ export function buildReqCertif({ modif, csrPem = null, certificateSerialToReplac
 }
 
 /**
+ * "utilisateur" request (SW-77 3.3): must be sent whenever a user account is added or removed
+ * on the SEV -- confirmed as a general SEV obligation, not just a certification checkbox
+ * ("Si vous ajoutez ou supprimez un compte utilisateur... une requête de type «utilisateur»
+ * doit être transmise au MEV-WEB"). noTax is optional and included only when validating an
+ * exploitant's tax numbers alongside the account (SW-77 cas 570) -- most account creations
+ * after the first don't carry it, per the worked examples in 3.3.2.
+ */
+export function buildReqUtil({ modif, userName, gstNumber = null, qstNumber = null }) {
+  const reqUtil = { modif, nomUtil: String(userName).trim() };
+  if (gstNumber || qstNumber) reqUtil.noTax = { noTPS: gstNumber, noTVQ: qstNumber };
+  return { reqUtil };
+}
+
+/**
  * SW-73 Tableau 12: "AJO" (add a first/replacement certificate) goes to a distinct
  * "enrolement" host; "REM"/"SUP" and every other request type share the plain host. Both use
  * the "cnfr." prefix outside PROD. Confirmed live against the real DEV enrolement endpoint.

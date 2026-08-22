@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {buildItems,buildMont,taxIndicator,interpretCodRetour,buildSignatureInput,buildTransactionSignatureInput,buildOfflineBatchEnvelope,buildReqCertif,validateSevText} from './mev-protocol.js';
+import {buildItems,buildMont,taxIndicator,interpretCodRetour,buildSignatureInput,buildTransactionSignatureInput,buildOfflineBatchEnvelope,buildReqCertif,buildReqUtil,validateSevText} from './mev-protocol.js';
 
 function round2(n){return Math.round((Number(n)+Number.EPSILON)*100)/100}
 function calcTax(sub){const gst=round2(sub*0.05),qst=round2(sub*0.09975);return {gst,qst,total:round2(sub+gst+qst)}}
@@ -120,6 +120,12 @@ assert.equal(
 // SW-73 4.3.1.1: "AJO" carries the CSR, "REM"/"SUP" carry the serial being replaced -- never both.
 assert.deepEqual(buildReqCertif({modif:'AJO',csrPem:'-----BEGIN...'}),{reqCertif:{modif:'AJO',csr:'-----BEGIN...'}});
 assert.deepEqual(buildReqCertif({modif:'SUP',certificateSerialToReplace:'AB12'}),{reqCertif:{modif:'SUP',noSerie:'AB12'}});
+// SW-77 §3.3.2 worked example (cas 002/501, étape 01): AJO with tax numbers for the first
+// account created for an exploitant.
+assert.deepEqual(buildReqUtil({modif:'AJO',userName:'Michel Untel',gstNumber:'567891234RT0001',qstNumber:'5678912340TQ0001'}),{reqUtil:{modif:'AJO',nomUtil:'Michel Untel',noTax:{noTPS:'567891234RT0001',noTVQ:'5678912340TQ0001'}}});
+// Étape 02 (SUP) and étape 03/04 (AJO for later accounts) carry no noTax in the doc's examples.
+assert.deepEqual(buildReqUtil({modif:'SUP',userName:'Michel Untel'}),{reqUtil:{modif:'SUP',nomUtil:'Michel Untel'}});
+assert.deepEqual(buildReqUtil({modif:'AJO',userName:'John Smith'}),{reqUtil:{modif:'AJO',nomUtil:'John Smith'}});
 
 assert.equal(validateSevText('Terrasse'),null);
 assert.match(validateSevText(' Terrasse'),/espace/);

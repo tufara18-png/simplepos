@@ -6,6 +6,7 @@
 // what is really saved, and nothing gets out of sync if the owner edits things later in Gestion
 // instead of coming back here.
 import { renderMevEnrollmentInto } from './mev-enrollment.js';
+import { submitMevUserAccount } from './mev-live.js';
 
 const CFG = window.RESTO360_CONFIG || {};
 const API = CFG.supabaseUrl ? `${CFG.supabaseUrl}/rest/v1` : '';
@@ -98,6 +99,15 @@ const STEPS = [
           const d = (await api(`restaurants?id=eq.${r.id}`, { method: 'PATCH', body: patch }))[0];
           Object.assign(r, d);
           body.querySelector('#wizCompanyResult').textContent = 'Enregistré.';
+          // SW-77 §3.3: adding a user account (here, the owner's own account, the moment their
+          // tax numbers are known) must be confirmed to the MEV-WEB. Fire-and-forget: this is a
+          // compliance side-effect, not something that should block saving the form if the
+          // device has no active certificate yet -- submitMevUserAccount already no-ops
+          // cleanly in that case, and the idempotency check inside it means a re-save here
+          // never resends a duplicate AJO once it has actually gone through.
+          if (session()?.user?.email && d.gst_number && d.qst_number) {
+            submitMevUserAccount({ restaurant: r, modif: 'AJO', userName: session().user.email, gstNumber: d.gst_number, qstNumber: d.qst_number }).catch(() => {});
+          }
           await refresh();
         } catch (e) { body.querySelector('#wizCompanyResult').textContent = `Erreur : ${e.message}`; }
       };
