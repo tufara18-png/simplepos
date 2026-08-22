@@ -13,7 +13,7 @@ function toast(message,type='ok'){
 
 async function getReceiptPrinter(){
   const cfg=window.RESTO360_CONFIG||{};
-  const session=JSON.parse(localStorage.getItem('resto360-session')||'null');
+  const session=JSON.parse(sessionStorage.getItem('resto360-session')||'null');
   if(!cfg.supabaseUrl||!cfg.supabasePublishableKey||!session?.access_token)return null;
   const r=await fetch(`${cfg.supabaseUrl}/rest/v1/printers?role=eq.receipt&enabled=eq.true&select=ip_address,port&limit=1`,{
     headers:{apikey:cfg.supabasePublishableKey,Authorization:`Bearer ${session.access_token}`}
@@ -25,7 +25,7 @@ async function getReceiptPrinter(){
 
 async function getCompanyInfo(){
   const cfg=window.RESTO360_CONFIG||{};
-  const session=JSON.parse(localStorage.getItem('resto360-session')||'null');
+  const session=JSON.parse(sessionStorage.getItem('resto360-session')||'null');
   if(!cfg.supabaseUrl||!cfg.supabasePublishableKey||!session?.access_token)return null;
   const r=await fetch(`${cfg.supabaseUrl}/rest/v1/restaurants?select=name,legal_name,address,city,postal_code,phone,gst_number,qst_number&order=created_at.asc&limit=1`,{
     headers:{apikey:cfg.supabasePublishableKey,Authorization:`Bearer ${session.access_token}`}

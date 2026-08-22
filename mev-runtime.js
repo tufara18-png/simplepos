@@ -11,7 +11,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const money = (n) => Number(n || 0).toLocaleString('fr-CA', { style: 'currency', currency: 'CAD' });
 
 function session() {
-  try { return JSON.parse(localStorage.getItem('resto360-session') || 'null'); }
+  try { return JSON.parse(sessionStorage.getItem('resto360-session') || 'null'); }
   catch { return null; }
 }
 

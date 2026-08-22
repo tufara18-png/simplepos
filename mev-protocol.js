@@ -342,6 +342,45 @@ export function parseCertificateSerialHex(pem) {
 }
 
 /**
+ * SW-78 FO-127: the SEV must warn the user before the operator's certificate expires -- pulls
+ * notAfter straight out of the same DER structure parseCertificateSerialHex already walks
+ * (RFC 5280 4.1: TBSCertificate serialNumber, signature AlgorithmIdentifier, issuer Name,
+ * validity { notBefore, notAfter }, in that fixed order), so no crypto library is needed here
+ * either. Returns an ISO 8601 string.
+ */
+export function parseCertificateExpiry(pem) {
+  const b64 = String(pem).replace(/-----BEGIN CERTIFICATE-----/, '').replace(/-----END CERTIFICATE-----/, '').replace(/\s+/g, '');
+  const der = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  const { contentStart: certStart } = derReadTL(der, 0);
+  const { contentStart: tbsStart } = derReadTL(der, certStart);
+  let pos = tbsStart;
+  if (der[pos] === 0xa0) {
+    const { length, contentStart } = derReadTL(der, pos);
+    pos = contentStart + length;
+  }
+  let tl = derReadTL(der, pos); // serialNumber
+  pos = tl.contentStart + tl.length;
+  tl = derReadTL(der, pos); // signature AlgorithmIdentifier
+  pos = tl.contentStart + tl.length;
+  tl = derReadTL(der, pos); // issuer Name
+  pos = tl.contentStart + tl.length;
+  tl = derReadTL(der, pos); // validity SEQUENCE { notBefore, notAfter }
+  if (tl.tag !== 0x30) throw new Error('Format de certificat inattendu (validité introuvable)');
+  const notBefore = derReadTL(der, tl.contentStart);
+  const notAfter = derReadTL(der, notBefore.contentStart + notBefore.length);
+  const text = new TextDecoder().decode(der.slice(notAfter.contentStart, notAfter.contentStart + notAfter.length));
+  // UTCTime (tag 0x17): YYMMDDHHMMSSZ, two-digit year per RFC 5280 4.1.2.5.1 (>=50 -> 19xx, else 20xx).
+  // GeneralizedTime (tag 0x18): YYYYMMDDHHMMSSZ.
+  const m = notAfter.tag === 0x18
+    ? text.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})Z$/)
+    : text.match(/^(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})Z$/);
+  if (!m) throw new Error('Format de date de certificat inattendu');
+  const [, yRaw, mo, d, h, mi, s] = m;
+  const y = notAfter.tag === 0x18 ? Number(yRaw) : (Number(yRaw) < 50 ? 2000 : 1900) + Number(yRaw);
+  return new Date(Date.UTC(y, Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s))).toISOString();
+}
+
+/**
  * "certificats" request to add ("AJO") a device's certificate, or replace/delete an existing
  * one ("REM"/"SUP"). `csrPem` comes straight from MevKeystorePlugin.createOperatorCsr -- this
  * function only wraps it in the envelope, it never builds or touches key material.

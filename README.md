@@ -36,6 +36,9 @@ Fonctions actives :
 - **note de crédit et rapport de l'utilisateur transmis pour de vrai au MEV-WEB** en mode `live`, pas seulement imprimés localement;
 - **mode Formation** (Réglages) : transactions fictives pour s'exercer, réellement transmises au MEV-WEB (`modTrans FOR`) mais exclues du rapport de l'utilisateur, bannière permanente à l'écran tant qu'actif — nécessite la migration `20260822_000035_formation_mode.sql`.
 - **accès multi-utilisateur** : le ou la propriétaire du compte peut donner accès à d'autres comptes déjà créés (Réglages → Personnel, rôle staff ou gérant) — nécessite la migration `20260822_000036_staff_accounts.sql`, pas encore appliquée en production.
+- **fermeture de session à la fermeture de l'appli** (SW-78 FO-102) : la session vit en `sessionStorage`, pas `localStorage` — elle ne survit plus à une fermeture complète de l'appli, seulement à une mise en veille normale.
+- **suppression des données de l'exploitant** (SW-78 FO-121/FO-124, Réglages → Supprimer mes données) : supprime le menu, les tables, les imprimantes, les réservations, les clients, les dépenses et l'accès du personnel; conserve toujours factures, paiements et données MEV-WEB — nécessite la migration `20260822_000037_delete_operator_data.sql`, pas encore appliquée en production.
+- **avertissement avant échéance du certificat MEV-WEB** (SW-78 FO-127) : bandeau à l'écran 30 jours avant l'expiration du certificat de l'appareil.
 
 ## Démarrer
 

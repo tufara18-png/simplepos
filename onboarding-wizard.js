@@ -12,7 +12,7 @@ const CFG = window.RESTO360_CONFIG || {};
 const API = CFG.supabaseUrl ? `${CFG.supabaseUrl}/rest/v1` : '';
 const $ = (s) => document.querySelector(s);
 
-function session() { try { return JSON.parse(localStorage.getItem('resto360-session') || 'null'); } catch { return null; } }
+function session() { try { return JSON.parse(sessionStorage.getItem('resto360-session') || 'null'); } catch { return null; } }
 function esc(v = '') { return String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
 async function api(path, { method = 'GET', body, prefer = 'return=representation' } = {}) {

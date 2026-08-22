@@ -8,7 +8,7 @@ const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 min; declare this figure in the FO-1
 const CFG = window.RESTO360_CONFIG || {};
 const AUTH = CFG.supabaseUrl ? `${CFG.supabaseUrl}/auth/v1` : '';
 
-function session() { try { return JSON.parse(localStorage.getItem('resto360-session') || 'null'); } catch { return null; } }
+function session() { try { return JSON.parse(sessionStorage.getItem('resto360-session') || 'null'); } catch { return null; } }
 function appVisible() { const app = document.getElementById('app'); return !!app && !app.classList.contains('hidden'); }
 function escapeHtml(v = '') { return String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 

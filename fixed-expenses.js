@@ -1,7 +1,7 @@
 const CFG=window.RESTO360_CONFIG||{};const API=`${CFG.supabaseUrl}/rest/v1`;const $=s=>document.querySelector(s);const money=n=>Number(n||0).toLocaleString('fr-CA',{style:'currency',currency:'CAD'});const uid=()=>crypto.randomUUID();
 const cats={rent:'Loyer',electricity:'Électricité',gas:'Gaz',water:'Eau',insurance:'Assurances',alarm:'Alarme / sécurité',internet:'Internet',phone:'Téléphone',software:'Logiciels',accounting:'Comptabilité',permits:'Permis / licences',bank_fees:'Frais bancaires',loan:'Prêt / financement',goodwill:'Fonds de commerce / investissement',equipment:'Équipement',payroll:'Salaires fixes',cleaning:'Nettoyage',pest_control:'Extermination',waste:'Déchets / recyclage',maintenance:'Entretien',marketing:'Marketing fixe',taxes:'Taxes / permis',other:'Autre'};
 function toast(m,type='ok'){const e=$('#toast');if(!e)return;e.textContent=m;e.dataset.type=type;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2400)}
-function session(){return JSON.parse(localStorage.getItem('resto360-session')||'null')}
+function session(){return JSON.parse(sessionStorage.getItem('resto360-session')||'null')}
 function headers(extra={}){const s=session();return{apikey:CFG.supabasePublishableKey||'',Authorization:`Bearer ${s?.access_token||''}`,'Content-Type':'application/json',...extra}}
 async function rest(path,{method='GET',body}={}){const r=await fetch(`${API}/${path}`,{method,headers:headers({Prefer:'return=representation'}),body:body===undefined?undefined:JSON.stringify(body)}),t=await r.text(),d=t?JSON.parse(t):null;if(!r.ok)throw new Error(d?.message||`Supabase ${r.status}`);return d}
 async function restaurant(){return(await rest('restaurants?select=id&order=created_at.asc&limit=1'))?.[0]}

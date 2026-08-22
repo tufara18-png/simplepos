@@ -9,7 +9,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 let ctx={restaurant:null,reservations:[],customers:[],tables:[],costs:[],fixed:[],invoices:[],invoiceItems:[],orderItems:[]};
 let dashboardPeriod='month';
 
-function session(){return JSON.parse(localStorage.getItem('resto360-session')||'null')}
+function session(){return JSON.parse(sessionStorage.getItem('resto360-session')||'null')}
 function headers(extra={}){const s=session();return{apikey:CFG.supabasePublishableKey,Authorization:`Bearer ${s?.access_token||''}`,'Content-Type':'application/json',...extra}}
 async function rest(path,{method='GET',body,prefer='return=representation'}={}){const r=await fetch(`${API}/${path}`,{method,headers:headers(prefer?{Prefer:prefer}:{}),body:body===undefined?undefined:JSON.stringify(body)}),t=await r.text(),d=t?JSON.parse(t):null;if(!r.ok)throw new Error(d?.message||`Supabase ${r.status}`);return d}
 function toast(m,type='ok'){const e=$('#toast');if(!e)return;e.textContent=m;e.dataset.type=type;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2400)}

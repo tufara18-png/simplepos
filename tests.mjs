@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {buildItems,buildMont,taxIndicator,interpretCodRetour,buildSignatureInput,buildTransactionSignatureInput,buildOfflineBatchEnvelope,buildReqCertif,buildReqUtil,buildReqTrans,buildReqDocumentRut,buildReportSignatureInput,withReportSignatureAndFooter,formatDocumentFields,datTrans,parseCertificateSerialHex,validateSevText} from './mev-protocol.js';
+import {buildItems,buildMont,taxIndicator,interpretCodRetour,buildSignatureInput,buildTransactionSignatureInput,buildOfflineBatchEnvelope,buildReqCertif,buildReqUtil,buildReqTrans,buildReqDocumentRut,buildReportSignatureInput,withReportSignatureAndFooter,formatDocumentFields,datTrans,parseCertificateSerialHex,parseCertificateExpiry,validateSevText} from './mev-protocol.js';
 import {splitIntoBatches} from './mev-offline-queue.js';
 
 function round2(n){return Math.round((Number(n)+Number.EPSILON)*100)/100}
@@ -99,6 +99,30 @@ assert.doesNotMatch(liveReceipt,/TRANSPORT MEV OFFICIEL NON CONFIGURÉ/);
   const wrapped = Buffer.concat([Buffer.from([0x30, cert.length]), cert]);
   const pem = `-----BEGIN CERTIFICATE-----\n${wrapped.toString('base64')}\n-----END CERTIFICATE-----`;
   assert.equal(parseCertificateSerialHex(pem), '1234ABCD');
+}
+
+// parseCertificateExpiry (SW-78 FO-127): extends the same minimal DER fixture with a
+// signature AlgorithmIdentifier, issuer Name (both empty SEQUENCEs -- the parser only needs to
+// skip over them) and a validity SEQUENCE of two UTCTimes, to check notAfter is the second one
+// picked out, not notBefore.
+{
+  const emptySeq = Buffer.from([0x30, 0x00]);
+  const utcTime = (s) => Buffer.concat([Buffer.from([0x17, s.length]), Buffer.from(s, 'ascii')]);
+  const notBefore = utcTime('250101000000Z');
+  const notAfter = utcTime('260315123000Z');
+  const validityContent = Buffer.concat([notBefore, notAfter]);
+  const validity = Buffer.concat([Buffer.from([0x30, validityContent.length]), validityContent]);
+  const tbs = Buffer.concat([
+    Buffer.from([0xa0, 0x03, 0x02, 0x01, 0x02]),
+    Buffer.from([0x02, 0x04, 0x12, 0x34, 0xab, 0xcd]),
+    emptySeq, // signature AlgorithmIdentifier
+    emptySeq, // issuer Name
+    validity,
+  ]);
+  const cert = Buffer.concat([Buffer.from([0x30, tbs.length]), tbs]);
+  const wrapped = Buffer.concat([Buffer.from([0x30, cert.length]), cert]);
+  const pem = `-----BEGIN CERTIFICATE-----\n${wrapped.toString('base64')}\n-----END CERTIFICATE-----`;
+  assert.equal(parseCertificateExpiry(pem), '2026-03-15T12:30:00.000Z');
 }
 
 // Credit note wiring (SW-77 Cas 006/506, FO-116): documentType 'credit_note' must map to

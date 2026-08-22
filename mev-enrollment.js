@@ -3,14 +3,14 @@
 // an authorization code received by mail) -- there is nothing to invent, so nothing here
 // guesses at those. On any platform without MevKeystore (everywhere except the Android
 // wrapper today), the card explains that instead of pretending to work.
-import { buildReqCertif, endpointFor, parseCertificateSerialHex } from './mev-protocol.js';
+import { buildReqCertif, endpointFor, parseCertificateSerialHex, parseCertificateExpiry } from './mev-protocol.js';
 
 const CFG = window.RESTO360_CONFIG || {};
 const API = CFG.supabaseUrl ? `${CFG.supabaseUrl}/rest/v1` : '';
 const $ = (s) => document.querySelector(s);
 const DEVICE_ALIAS = 'mev-operator-key';
 
-function session() { try { return JSON.parse(localStorage.getItem('resto360-session') || 'null'); } catch { return null; } }
+function session() { try { return JSON.parse(sessionStorage.getItem('resto360-session') || 'null'); } catch { return null; } }
 function escapeHtml(v = '') { return String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
 async function api(path, { method = 'GET', body, prefer = 'return=representation' } = {}) {
@@ -175,7 +175,11 @@ export async function renderMevEnrollmentInto(host, { onChange } = {}) {
       const sent = await window.Resto360Mev.sendRequest({ url, headers, body: JSON.stringify({ reqCertif }) });
       const data = JSON.parse(sent.body || '{}');
       const ok = sent.status >= 200 && sent.status < 300;
-      if (ok && data?.retourCertif?.idApprl) await upsertDevice(r.id, { id_apprl: data.retourCertif.idApprl, certificate_pem: data.retourCertif.certif || null, certificate_status: data.retourCertif.certif ? 'active' : 'pending', certificate_issued_at: data.retourCertif.certif ? new Date().toISOString() : null });
+      // SW-78 FO-127: record the certificate's real expiry (parsed from the certificate itself,
+      // not guessed) so the app can warn before it lapses -- see checkCertificateExpiry() below.
+      let expiresAt = null;
+      if (data?.retourCertif?.certif) { try { expiresAt = parseCertificateExpiry(data.retourCertif.certif); } catch (e) {} }
+      if (ok && data?.retourCertif?.idApprl) await upsertDevice(r.id, { id_apprl: data.retourCertif.idApprl, certificate_pem: data.retourCertif.certif || null, certificate_status: data.retourCertif.certif ? 'active' : 'pending', certificate_issued_at: data.retourCertif.certif ? new Date().toISOString() : null, certificate_expires_at: expiresAt });
       await logCertifRequest(r, freshDevice.id, headers, reqCertif, sent, data, ok);
       const resultMessage = ok
         ? 'Requête acceptée par le MEV-WEB — certificat reçu.'
@@ -211,7 +215,7 @@ export async function renderMevEnrollmentInto(host, { onChange } = {}) {
         // issued for is now orphaned regardless, so drop it too rather than leaving a private
         // key around with nothing that can ever use it again.
         await window.Resto360Mev.deleteKey(DEVICE_ALIAS);
-        await upsertDevice(r.id, { certificate_pem: null, certificate_status: 'deleted', certificate_issued_at: null, csr_pem: null });
+        await upsertDevice(r.id, { certificate_pem: null, certificate_status: 'deleted', certificate_issued_at: null, certificate_expires_at: null, csr_pem: null });
       }
       const resultMessage = ok
         ? 'Certificat supprimé. Générez une nouvelle clé et un nouveau CSR avant de transmettre à nouveau.'

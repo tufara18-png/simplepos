@@ -10,7 +10,7 @@ const $$ = s => [...document.querySelectorAll(s)];
 const money = n => Number(n || 0).toLocaleString('fr-CA',{style:'currency',currency:'CAD'});
 
 function toast(message,type='ok'){const el=$('#toast');if(!el)return;el.textContent=message;el.dataset.type=type;el.classList.add('show');clearTimeout(el._demoTimer);el._demoTimer=setTimeout(()=>el.classList.remove('show'),2600)}
-function session(){try{return JSON.parse(localStorage.getItem('resto360-session')||'null')}catch{return null}}
+function session(){try{return JSON.parse(sessionStorage.getItem('resto360-session')||'null')}catch{return null}}
 function headers(){const s=session();return{apikey:CFG.supabasePublishableKey||'',Authorization:`Bearer ${s?.access_token||''}`,'Content-Type':'application/json'}}
 async function rest(path,{method='GET',body}={}){
   const s=session();

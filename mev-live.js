@@ -14,7 +14,7 @@ const CFG = window.RESTO360_CONFIG || {};
 const API = CFG.supabaseUrl ? `${CFG.supabaseUrl}/rest/v1` : '';
 const DEVICE_ALIAS = 'mev-operator-key';
 
-function session() { try { return JSON.parse(localStorage.getItem('resto360-session') || 'null'); } catch { return null; } }
+function session() { try { return JSON.parse(sessionStorage.getItem('resto360-session') || 'null'); } catch { return null; } }
 async function api(path, { method = 'GET', body, prefer = 'return=representation' } = {}) {
   const s = session();
   if (!API || !s?.access_token) throw new Error('Non connecté');

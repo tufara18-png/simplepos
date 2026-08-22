@@ -72,13 +72,15 @@ dans la déclaration plutôt que de construire la fonctionnalité).
 | Cas | Objet | Statut |
 |---|---|---|
 | FO-101 | Identification utilisateur, fermeture de session manuelle | Couvert (connexion Supabase par utilisateur, `logout()`) |
-| FO-102 | Fermer indirectement une session (fermeture de l'appli/de l'appareil) | **Gap encore ouvert** : la session survit indéfiniment dans `localStorage`. La corriger proprement demanderait de changer le mécanisme de stockage de session dans les 13 fichiers qui le lisent/l'écrivent directement (`resto360-session`) — pas fait ici pour éviter une migration risquée non testable sans appareil réel; à traiter en changeant le stockage vers `sessionStorage` (survit une mise en veille normale, se vide au vrai redémarrage du processus de l'appli) une fois vérifiable sur un appareil |
+| FO-102 | Fermer indirectement une session (fermeture de l'appli/de l'appareil) | **Fait** : la session vit maintenant dans `sessionStorage` (pas `localStorage`) dans les 14 fichiers qui la lisent/l'écrivent. Vérifié par Playwright : un nouveau contexte de navigateur (simule l'appli complètement fermée puis rouverte) n'a plus la session et retombe sur l'écran de connexion; un simple rechargement dans le même contexte la garde (ne déconnecte pas au verrouillage d'écran normal). Reste à confirmer sur un vrai appareil Android que le WebView de Capacitor a bien la même sémantique (devrait, mais pas garanti à 100 % sans test sur appareil) |
 | FO-103 | Identifier l'utilisateur en mode Veille | **Fait** (`session-lock.js`) : verrouillage après 5 min d'inactivité, redemande le mot de passe de l'utilisateur en cours sans toucher à la commande active ni à la session Supabase sous-jacente |
-| FO-104/105/106 | Transmission d'une facture produite hors ligne (à la fermeture de session, manuellement, sur demande + transactions en attente) | Partiel : `mev-offline-queue.js` existe mais jamais testé sur un vrai appareil ; pas de déclencheur manuel explicite « transmettre maintenant » distinct de la reconnexion automatique |
+| FO-104 | Transmettre, à la fermeture de session manuelle, une facture produite hors ligne | **Fait côté code** : `logout()` tente maintenant de vider la file MEV hors ligne avant de fermer la session (best-effort, ne bloque jamais la fermeture). La mécanique de file elle-même (`mev-offline-queue.js`, IndexedDB + signature chaînée) passe par `window.Resto360Mev`, le pont natif Android — elle rend `{sent:0}` sans rien faire dans un navigateur ordinaire, donc **non vérifiable de bout en bout sans appareil réel** |
+| FO-105 | Transmettre manuellement une facture produite hors ligne + consulter l'activation/désactivation du mode Hors ligne | Étape 1 : même limite que FO-104 (déclenchement automatique à la reconnexion déjà en place via l'écouteur `online`, jamais vérifié sur un vrai appareil). Étape 2 : **probablement déjà couvert** — `logFiscalEvent('offline_mode_on'/'offline_mode_off')` existe déjà et journalise ces moments; à confirmer que c'est bien consultable depuis l'écran Historique/Archives fiscales |
+| FO-106 | Transmission sur demande et transactions en attente | Devient applicable depuis l'ajout de l'accès multi-utilisateur (caractéristique « gérer plusieurs employés »). Étape 2 sautable (pas de « gérer plusieurs mandataires »). Étapes 1 et 3 : la file hors ligne est scindée par **appareil** (`deviceId`), pas par utilisateur — aucune donnée par utilisateur n'y est stockée, donc la confidentialité inter-employés exigée à l'étape 3 est déjà garantie par construction; reste bloqué par la même limite d'appareil réel que FO-104/105 pour une vérification complète |
 | FO-107 | Afficher les messages d'erreur du MEV-WEB | Probablement couvert : `interpretCodRetour`/`listErr` existent dans `mev-protocol.js`/`mev-live.js` — à vérifier que le message réel de Revenu Québec (pas juste un code interne) atteint l'écran |
 | FO-108 | Créer des comptes utilisateurs (spécifique RBC : TPS/TVQ invalides ne bloque pas l'opération, contrairement au secteur TRP) | Partiel : `submitMevUserAccount` existe mais jamais vérifié en direct ; le comportement « continuer à opérer si TPS/TVQ invalide » n'est pas explicitement géré |
 | FO-109 | Conserver et **supprimer** un certificat | **Fait** : bouton « Supprimer le certificat » (SUP) dans `mev-enrollment.js`, supprime aussi la clé locale Android Keystore. En le construisant, correction d'un vrai bug latent : le remplacement (REM) n'a jamais inclus `noSerie` (numéro de série du certificat à remplacer), obligatoire selon le Cas 500 — ajout de `parseCertificateSerialHex()` dans `mev-protocol.js` pour l'extraire du certificat stocké |
-| FO-110 | Produire des rapports | Le rapport local existe (`generateUserReport`/`printUserReport`) mais n'est jamais transmis au MEV-WEB comme requête « document » (voir aussi Cas 103/603 plus bas) |
+| FO-110 | Produire des rapports | **Fait** — `generateUserReport()` produit le rapport local et, en mode `live`, appelle déjà `submitMevUserReport()` (voir Cas 103/603) : le statut « le rapport n'est jamais transmis » dans une passe antérieure de ce document était obsolète, la connexion existe bel et bien dans le code actuel |
 | FO-111 | Problème d'imprimante après transmission réussie | À vérifier : la transaction MEV ne doit jamais être perdue/dupliquée si l'impression échoue après coup — `mev_receipts.printed_at` existe déjà pour ce découplage, comportement à confirmer |
 | FO-112/113 | Copie conforme invisible / erreurs lors de l'envoi de factures électroniques | **Sans objet** : conditionnel à « si votre SEV permet d'envoyer les factures électroniquement » — Resto360 ne le fait pas, se déclare simplement non applicable |
 | FO-114 | Ajouter et retirer des items | Couvert (addition révisée, compteur de révisions) |
@@ -88,13 +90,13 @@ dans la déclaration plutôt que de construire la fonctionnalité).
 | FO-118 | Accéder aux données du SEV (cloisonnement entre exploitants) | Couvert par RLS par restaurant ; l'étape « entre employés » est sautable pour RBC sans « gérer plusieurs mandataires » (Resto360 n'a pas cette caractéristique) |
 | FO-119 | Empêcher la suppression avant copie | À vérifier explicitement, sinon petit ajout de garde-fou |
 | FO-120 | Copier les données de l'exploitant | Probablement déjà largement couvert par l'export JSON/CSV existant (`Gestion → Archives fiscales locales`) — reste à empaqueter en ZIP et confirmer la couverture exacte demandée (FO-105, FO-106, FO-117, FO-104, FO-108, FO-114, FO-115, FO-116) |
-| FO-121 | Supprimer les données de l'exploitant | Conditionnel — à confirmer si une suppression de compte/données existe déjà ou doit être ajoutée |
+| FO-121 | Supprimer les données de l'exploitant | **Fait** — voir la section « Suppression des données de l'exploitant » ci-dessous |
 | FO-122/123 | Copier/supprimer les données des employés | Sautable pour RBC sans « gérer plusieurs mandataires » — probablement sans objet pour Resto360 |
-| FO-124 | Supprimer des données avec transactions hors ligne en attente | À construire si FO-121 l'est |
+| FO-124 | Supprimer des données avec transactions hors ligne en attente | **Fait** — même fonction que FO-121 (`delete_operator_data()`), qui ne touche jamais aux commandes/factures/tentatives MEV, hors ligne ou non |
 | FO-125 | Transmettre après une mise à jour du SEV | Devrait déjà fonctionner (la file hors ligne ne dépend pas de la version de l'appli), à vérifier explicitement |
-| FO-126 | Récupérer les données après retrait des droits | À construire si applicable |
-| FO-127 | Avertir avant l'échéance du certificat | **Gap** : aucun suivi de date d'expiration de certificat |
-| FO-128 | Rapport de l'utilisateur à la fin d'un abonnement | Lié à FO-110 |
+| FO-126 | Récupérer les données après retrait des droits | **Pas construit, décision produit nécessaire** : Resto360 n'a aucun mécanisme de révocation/expiration de licence aujourd'hui (pas d'abonnement à faire expirer), donc rien à démontrer tant que ce mécanisme n'existe pas. L'export existant (FO-120) reste disponible tant que le compte peut se connecter — si Revenu Québec exige une garantie explicite au-delà de ça, il faut d'abord définir ce que "retrait des droits" signifie pour Resto360 (compte impayé? résilié par le propriétaire?) avant de coder quoi que ce soit |
+| FO-127 | Avertir avant l'échéance du certificat | **Fait** : `certificate_expires_at` est maintenant rempli à l'enrôlement (`parseCertificateExpiry()` dans `mev-protocol.js`, lu directement dans le certificat DER, pas deviné) et un bandeau rouge apparaît 30 jours avant échéance (choix arbitraire, le guide ne précise pas de délai — se démontre en avançant l'horloge de l'appareil comme demandé dans le cas d'essai) |
+| FO-128 | Rapport de l'utilisateur à la fin d'un abonnement | Lié à FO-110, déjà fait — le sélecteur d'année du rapport n'est pas conditionné par un abonnement actif |
 | FO-129 | Présence du fuseau horaire | Probablement couvert (`utc` obligatoire déjà confirmé en direct, commit a90f125) |
 | FO-130 | Pourboires | Couvert |
 | FO-131 | Gestion des redevances | **Sans objet** — le document le dit explicitement : secteur Transport rémunéré de personnes seulement |
@@ -185,6 +187,27 @@ compte) — courriel + rôle pour donner accès, liste des comptes avec accès e
 Validé contre un serveur Supabase simulé fidèle (mêmes règles, pas des mocks vides) : isolation
 inter-restaurants, auto-invitation refusée, rôle `owner` refusé, retrait immédiat de l'accès.
 
+## Suppression des données de l'exploitant (FO-121/FO-124)
+
+Nouvelle fonction `delete_operator_data()` (`20260822_000037_delete_operator_data.sql`), owner-only,
+appelée depuis Réglages → « Supprimer mes données » (confirmation obligatoire : taper le nom du
+restaurant). Supprime : menu, tables, imprimantes, sections, pourboires suggérés, réservations,
+clients, dépenses/coûts d'exploitation, configuration et appareils MEV-WEB, accès du personnel
+(sauf le ou la propriétaire). Remet `app_settings.mev_mode/demo_mode/formation_mode` à leurs
+valeurs par défaut plutôt que de supprimer la ligne (clé primaire référencée par `finalize_invoice()`).
+
+Ne touche jamais : commandes, articles de commande, factures, articles de facture, paiements,
+tentatives/transactions/reçus MEV, événements fiscaux, documents fiscaux, rapports de
+l'utilisateur, compteurs de facture/document. C'est un choix délibéré (confirmé avec l'utilisateur
+plutôt que deviné) : SW-76 exige une chaîne fiscale en ajout seul, et la loi comptable québécoise
+exige une conservation de plusieurs années des registres — supprimer la ligne `restaurants`
+elle-même aurait fait cascader la suppression jusque dans ces tables (toutes en
+`on delete cascade` sur `restaurants(id)`), donc la fonction ne supprime jamais cette ligne, ni la
+chaîne fiscale, seulement les tables de configuration/opérationnelles listées ci-dessus.
+
+Validé par Playwright contre le serveur Supabase simulé : les tables opérationnelles sont vidées,
+une facture déjà payée survit intacte à l'opération.
+
 ## Migrations en attente
 
 Cette session n'a aucun accès réseau vers Supabase (ni l'API de gestion, ni l'API REST du
@@ -201,6 +224,11 @@ Rejouable sans risque (fonctions en `create or replace`, politiques en `drop pol
 avant `create policy`). Tant que ce n'est pas appliqué : la carte « Personnel » dans Réglages
 échouera avec une erreur Supabase (fonction `add_restaurant_member` inconnue) — pas de régression
 sur le reste de l'appli en attendant.
+
+**`supabase/migrations/20260822_000037_delete_operator_data.sql`** (suppression des données de
+l'exploitant, voir ci-dessus) — **pas encore appliquée**. Même remarque : rejouable sans risque,
+et tant que ce n'est pas appliqué la carte « Supprimer mes données » échouera avec une erreur
+Supabase sans rien casser d'autre.
 
 Les fichiers individuels `supabase/migrations/20260822_000034_card_type_credit_debit.sql` et
 `20260822_000035_formation_mode.sql` restent dans le repo pour l'historique des migrations

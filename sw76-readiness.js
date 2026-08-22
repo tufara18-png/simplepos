@@ -20,7 +20,7 @@ let decorateTimer=null;
 function setNextPrintContext(ctx){nextPrintContext=ctx}
 window.__resto360SetPrintContext=setNextPrintContext;
 
-function session(){try{return JSON.parse(localStorage.getItem('resto360-session')||'null')}catch{return null}}
+function session(){try{return JSON.parse(sessionStorage.getItem('resto360-session')||'null')}catch{return null}}
 function authHeaders(extra={}){const s=session();return{apikey:CFG.supabasePublishableKey||'',Authorization:`Bearer ${s?.access_token||''}`,'Content-Type':'application/json',...extra}}
 function isDemo(){return window.RESTO360_DEMO===true||document.body.classList.contains('preview-demo')}
 function safeJson(value,fallback){try{return JSON.parse(value)}catch{return fallback}}

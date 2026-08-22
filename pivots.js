@@ -9,7 +9,7 @@ let openedSeats=1;
 // Per-restaurant switch: table service wants seats, a counter does not.
 let seatEnabled=true,settingsLoadedFor=null,restaurantId=null;
 
-function session(){try{return JSON.parse(localStorage.getItem('resto360-session')||'null')}catch{return null}}
+function session(){try{return JSON.parse(sessionStorage.getItem('resto360-session')||'null')}catch{return null}}
 function headers(extra={}){const s=session();return{apikey:CFG.supabasePublishableKey||'',Authorization:`Bearer ${s?.access_token||''}`,'Content-Type':'application/json',...extra}}
 function money(n){return Number(n||0).toLocaleString('fr-CA',{style:'currency',currency:'CAD'})}
 function toast(message,type='ok'){const el=$('#toast');if(!el)return;el.textContent=message;el.dataset.type=type;el.classList.add('show');clearTimeout(el._pivotTimer);el._pivotTimer=setTimeout(()=>el.classList.remove('show'),2400)}
