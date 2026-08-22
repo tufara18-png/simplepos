@@ -201,7 +201,24 @@ async function refreshOrderPivots(){
 
 function ensurePayPivotBar(){const items=$('#payItems');if(!items)return null;let bar=$('#payPivotBar');if(!bar){bar=document.createElement('div');bar.id='payPivotBar';bar.className='pay-pivot-bar';items.before(bar)}return bar}
 async function setPaymentSelection(seat){let guard=0;const step=()=>{if(guard++>100)return;const rows=$$('#payItems [data-payitem]');if(!rows.length)return;let target=null;for(const row of rows){const id=row.dataset.payitem,selected=row.classList.contains('selected'),should=seat===null?false:Number(seatCache.get(id)?.seat_number||1)===seat;if(selected!==should){target=row;break}}if(target){target.click();setTimeout(step,0)}};step()}
-async function refreshPayPivots(){const screen=$('#payScreen');if(!screen?.classList.contains('active'))return;await loadSeatSetting();if(!seatEnabled){$('#payPivotBar')?.remove();return}const ids=$$('#payItems [data-payitem]').map(x=>x.dataset.payitem).filter(Boolean);await loadItems(ids);const bar=ensurePayPivotBar();if(!bar)return;const seats=[...new Set(ids.map(id=>Number(seatCache.get(id)?.seat_number||1)))].sort((a,b)=>a-b);bar.innerHTML=`<span class="pivot-label">Qui paie?</span><button class="pivot-pay-choice" data-pay-seat="all">Toute la table</button>${seats.map(s=>`<button class="pivot-pay-choice" data-pay-seat="${s}">Place ${s}</button>`).join('')}<button class="pivot-pay-choice pivot-sep-btn" data-open-split>Séparer…</button>`;bar.querySelectorAll('[data-pay-seat]').forEach(b=>b.onclick=()=>{bar.querySelectorAll('.pivot-pay-choice').forEach(x=>x.classList.toggle('active',x===b));const v=b.dataset.paySeat;setPaymentSelection(v==='all'?null:Number(v))});bar.querySelector('[data-open-split]').onclick=()=>openSplitScreen()}
+// Which "Qui paie?" button, if any, matches the selection actually on screen right now --
+// derived fresh from the real #payItems checkboxes rather than remembered in a variable, so
+// it survives refreshPayPivots() rebuilding the bar's buttons from scratch (which happens on
+// every selection change, since selecting items is itself a #payItems mutation the pivot bar
+// observes). A remembered "last clicked seat" would be wiped by that very rebuild, which is
+// exactly why the buttons never looked highlighted before -- the click worked, the visual
+// feedback just never survived long enough to be seen.
+function activePaySeat(rows){
+  const selected=rows.filter(r=>r.classList.contains('selected')).map(r=>r.dataset.payitem);
+  if(!selected.length)return'all';
+  const selectedSet=new Set(selected);
+  const seatsOfSelected=new Set(selected.map(id=>Number(seatCache.get(id)?.seat_number||1)));
+  if(seatsOfSelected.size!==1)return null;
+  const [seat]=seatsOfSelected;
+  const allOfSeat=rows.filter(r=>Number(seatCache.get(r.dataset.payitem)?.seat_number||1)===seat);
+  return allOfSeat.every(r=>selectedSet.has(r.dataset.payitem))?seat:null;
+}
+async function refreshPayPivots(){const screen=$('#payScreen');if(!screen?.classList.contains('active'))return;await loadSeatSetting();if(!seatEnabled){$('#payPivotBar')?.remove();return}const rows=$$('#payItems [data-payitem]');const ids=rows.map(x=>x.dataset.payitem).filter(Boolean);await loadItems(ids);const bar=ensurePayPivotBar();if(!bar)return;const seats=[...new Set(ids.map(id=>Number(seatCache.get(id)?.seat_number||1)))].sort((a,b)=>a-b);const active=activePaySeat(rows);bar.innerHTML=`<span class="pivot-label">Qui paie?</span><button class="pivot-pay-choice ${active==='all'?'active':''}" data-pay-seat="all">Toute la table</button>${seats.map(s=>`<button class="pivot-pay-choice ${active===s?'active':''}" data-pay-seat="${s}">Place ${s}</button>`).join('')}<button class="pivot-pay-choice pivot-sep-btn" data-open-split>Séparer…</button>`;bar.querySelectorAll('[data-pay-seat]').forEach(b=>b.onclick=()=>{const v=b.dataset.paySeat;setPaymentSelection(v==='all'?null:Number(v))});bar.querySelector('[data-open-split]').onclick=()=>openSplitScreen()}
 
 // "Separate at the end": assign items to people once the meal is over, for the
 // server who did not use Client suivant during the order. It only writes
