@@ -30,7 +30,8 @@ Fonctions actives :
 - **article partagé** : une bouteille partagée entre plusieurs places est fractionnée au cent près (la somme des parts redonne toujours le montant exact), chaque personne paie sa part;
 - **mode démo** (Réglages) : simule l'impression à l'écran pour tester tout le flux sans imprimante physique. À ne jamais activer pendant un vrai service;
 - **montants de vente calculés côté serveur** : `finalize_invoice()` recalcule sous-total, taxes et total depuis la commande réelle; le POS ne peut plus dicter le montant enregistré;
-- **note de crédit** (remboursement depuis l'historique) et **annulation de commande** avec reçu.
+- **note de crédit** (remboursement depuis l'historique) et **annulation de commande** avec reçu;
+- **verrouillage après inactivité** (5 min) : redemande le mot de passe de l'utilisateur en cours avant de continuer, sans perdre la commande active ni la session Supabase sous-jacente.
 
 ## Démarrer
 
@@ -144,6 +145,7 @@ node --check pivots.js
 node --check demo-mode.js
 node --check sw76-readiness.js
 node --check onboarding-wizard.js
+node --check session-lock.js
 ```
 
 GitHub Actions exécute les mêmes vérifications sur `main`.

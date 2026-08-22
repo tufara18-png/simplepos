@@ -296,6 +296,45 @@ export function interpretCodRetour(codRetour) {
   };
 }
 
+function derReadTL(bytes, offset) {
+  const tag = bytes[offset];
+  const lenByte = bytes[offset + 1];
+  let length, contentStart;
+  if (lenByte & 0x80) {
+    const numBytes = lenByte & 0x7f;
+    length = 0;
+    for (let i = 0; i < numBytes; i++) length = (length << 8) | bytes[offset + 2 + i];
+    contentStart = offset + 2 + numBytes;
+  } else {
+    length = lenByte;
+    contentStart = offset + 2;
+  }
+  return { tag, length, contentStart };
+}
+
+/**
+ * Pulls the serialNumber out of an X.509 DER certificate's PEM text -- the "noSerie" a "REM"/
+ * "SUP" certificats request must carry to tell Revenu Québec which certificate to act on
+ * (SW-77 Cas 500). No crypto library needed: Certificate/TBSCertificate are both a fixed
+ * SEQUENCE shape (RFC 5280 4.1), and serialNumber is the first field after the optional
+ * [0]-tagged EXPLICIT version -- present on any v3 cert, which is what these are (they carry
+ * extensions).
+ */
+export function parseCertificateSerialHex(pem) {
+  const b64 = String(pem).replace(/-----BEGIN CERTIFICATE-----/, '').replace(/-----END CERTIFICATE-----/, '').replace(/\s+/g, '');
+  const der = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  const { contentStart: certStart } = derReadTL(der, 0);
+  const { contentStart: tbsStart } = derReadTL(der, certStart);
+  let pos = tbsStart;
+  if (der[pos] === 0xa0) {
+    const { length, contentStart } = derReadTL(der, pos);
+    pos = contentStart + length;
+  }
+  const { tag, length, contentStart: serialStart } = derReadTL(der, pos);
+  if (tag !== 0x02) throw new Error('Format de certificat inattendu (numéro de série introuvable)');
+  return Array.from(der.slice(serialStart, serialStart + length)).map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+}
+
 /**
  * "certificats" request to add ("AJO") a device's certificate, or replace/delete an existing
  * one ("REM"/"SUP"). `csrPem` comes straight from MevKeystorePlugin.createOperatorCsr -- this

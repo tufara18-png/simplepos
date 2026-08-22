@@ -30,4 +30,5 @@ jobs:
       - run: node --check demo-mode.js
       - run: node --check sw76-readiness.js
       - run: node --check onboarding-wizard.js
+      - run: node --check session-lock.js
       - run: node tests.mjs

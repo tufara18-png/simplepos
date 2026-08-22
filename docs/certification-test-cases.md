@@ -7,33 +7,28 @@ réel du code, pour prioriser le travail restant.
 **Ordre obligatoire** : le SW-78 dit explicitement de compléter ses cas *avant* de commencer ceux
 du SW-77 — mêmes certificats et comptes pour les deux. Donc SW-78 d'abord.
 
-## Décision à prendre avant de coder quoi que ce soit : mode Serveur
+## Décision prise : mode SEV seulement, mode Serveur retiré
 
-Le dossier partenaire déclare Resto360 pour **deux** modes d'opération : « Serveur » et « SEV ».
+Le dossier partenaire déclarait Resto360 pour **deux** modes d'opération : « Serveur » et « SEV ».
 Le SW-77 teste chaque cas fonctionnel séparément sous les deux (numéros `0XX` = SEV, `5XX` =
-Serveur). Le code actuel (`mev-live.js`) n'implémente que le mode **SEV** : chaque appareil
-Android a sa propre clé Keystore non exportable et signe/transmet directement.
+Serveur). Le code (`mev-live.js`) n'implémente que le mode **SEV** : chaque appareil Android a sa
+propre clé Keystore non exportable et signe/transmet directement — et ça restera comme ça.
 
-Le **Cas 500** (« Gérer les certificats numériques du serveur ») exige un composant *serveur*
-distinct qui :
-- génère et stocke sa propre biclé ECDSA P-256, avec une clé privée **exportable en clair**
-  (contrairement à la clé SEV, volontairement non exportable) ;
-- fait sa propre demande/remplacement/suppression de certificat (`/enrolement`, `/certificats`) ;
-- signe et transmet lui-même les transactions pour le compte des appareils qui s'y connectent.
+Le mode Serveur (Cas 500) aurait exigé un composant serveur séparé avec sa propre clé
+**exportable**, un vrai second système (garde de clé privée en environnement serveur, signature
+centralisée, cycle de vie de certificat côté serveur) — hors de portée pour l'instant, d'autant
+qu'une tentative précédente de faire signer/transmettre depuis une Edge Function Supabase
+(`mev-certificats`, gardée dans le repo comme référence) s'est heurtée à un vrai bug confirmé :
+le runtime Deno déforme l'en-tête IDVERSI en sortie, même en forçant HTTP/1.1.
 
-Rien de tout ça n'existe dans `mev-gateway`. C'est un vrai second système à construire (garde
-d'une clé privée exportable en environnement serveur, signature centralisée, gestion de cycle de
-vie de certificat côté serveur), pas une extension du code actuel — et ça change la posture de
-sécurité (une clé exportable côté serveur est une responsabilité différente d'une clé Keystore
-par appareil).
-
-**Deux options, à trancher avant de prioriser le reste :**
-1. Construire le mode Serveur (architecture plus naturelle pour un restaurant à plusieurs
-   appareils partageant un seul numéro de séquence — actuellement chaque appareil serait sa
-   propre chaîne de signature indépendante en mode SEV pur) ;
-2. Retirer le mode Serveur du produit enregistré chez Revenu Québec (Mon dossier pour les
-   partenaires) et ne certifier que le mode SEV — plus simple, mais chaque appareil/caisse reste
-   une entité SEV distincte avec sa propre séquence de transactions.
+**Décidé (2026-08-22)** : rester en mode SEV seul pour l'instant — une tablette/caisse par
+restaurant pour l'instant. **Action restante côté utilisateur, pas côté code** : retirer le mode
+« Serveur » de l'inscription du produit dans Mon dossier pour les partenaires, pour que
+l'inscription corresponde à ce qui est réellement construit avant de commencer les cas d'essai.
+Tous les cas `5XX`/Cas 500 ci-dessous sont donc **hors de portée** tant que ce choix ne change pas ;
+si un jour plusieurs appareils actifs en même temps sont nécessaires, le mode Serveur s'ajoute en
+parallèle du mode SEV existant sans réécrire ce qui est déjà fait (voir `mev-architecture.md`
+sur la façon dont les transports sont déjà pluggables derrière `submitMev()`).
 
 ## SW-78 — cas complémentaires (FO-101 à FO-132)
 
@@ -43,11 +38,13 @@ dans la déclaration plutôt que de construire la fonctionnalité).
 
 | Cas | Objet | Statut |
 |---|---|---|
-| FO-101/102/103 | Identification utilisateur, fermeture de session (manuelle, à la fermeture de l'appli/appareil), verrouillage en mode Veille | **Gap** : connexion Supabase par utilisateur existe, mais aucun verrouillage automatique après inactivité (« mode Veille ») ni fermeture de session forcée à la fermeture de l'appli |
+| FO-101 | Identification utilisateur, fermeture de session manuelle | Couvert (connexion Supabase par utilisateur, `logout()`) |
+| FO-102 | Fermer indirectement une session (fermeture de l'appli/de l'appareil) | **Gap encore ouvert** : la session survit indéfiniment dans `localStorage`. La corriger proprement demanderait de changer le mécanisme de stockage de session dans les 13 fichiers qui le lisent/l'écrivent directement (`resto360-session`) — pas fait ici pour éviter une migration risquée non testable sans appareil réel; à traiter en changeant le stockage vers `sessionStorage` (survit une mise en veille normale, se vide au vrai redémarrage du processus de l'appli) une fois vérifiable sur un appareil |
+| FO-103 | Identifier l'utilisateur en mode Veille | **Fait** (`session-lock.js`) : verrouillage après 5 min d'inactivité, redemande le mot de passe de l'utilisateur en cours sans toucher à la commande active ni à la session Supabase sous-jacente |
 | FO-104/105/106 | Transmission d'une facture produite hors ligne (à la fermeture de session, manuellement, sur demande + transactions en attente) | Partiel : `mev-offline-queue.js` existe mais jamais testé sur un vrai appareil ; pas de déclencheur manuel explicite « transmettre maintenant » distinct de la reconnexion automatique |
 | FO-107 | Afficher les messages d'erreur du MEV-WEB | Probablement couvert : `interpretCodRetour`/`listErr` existent dans `mev-protocol.js`/`mev-live.js` — à vérifier que le message réel de Revenu Québec (pas juste un code interne) atteint l'écran |
 | FO-108 | Créer des comptes utilisateurs (spécifique RBC : TPS/TVQ invalides ne bloque pas l'opération, contrairement au secteur TRP) | Partiel : `submitMevUserAccount` existe mais jamais vérifié en direct ; le comportement « continuer à opérer si TPS/TVQ invalide » n'est pas explicitement géré |
-| FO-109 | Conserver et **supprimer** un certificat | **Gap** : `mev-enrollment.js` ne fait qu'ajouter (AJO) ; aucune suppression/révocation dans l'interface |
+| FO-109 | Conserver et **supprimer** un certificat | **Fait** : bouton « Supprimer le certificat » (SUP) dans `mev-enrollment.js`, supprime aussi la clé locale Android Keystore. En le construisant, correction d'un vrai bug latent : le remplacement (REM) n'a jamais inclus `noSerie` (numéro de série du certificat à remplacer), obligatoire selon le Cas 500 — ajout de `parseCertificateSerialHex()` dans `mev-protocol.js` pour l'extraire du certificat stocké |
 | FO-110 | Produire des rapports | Le rapport local existe (`generateUserReport`/`printUserReport`) mais n'est jamais transmis au MEV-WEB comme requête « document » (voir aussi Cas 103/603 plus bas) |
 | FO-111 | Problème d'imprimante après transmission réussie | À vérifier : la transaction MEV ne doit jamais être perdue/dupliquée si l'impression échoue après coup — `mev_receipts.printed_at` existe déjà pour ce découplage, comportement à confirmer |
 | FO-112/113 | Copie conforme invisible / erreurs lors de l'envoi de factures électroniques | **Sans objet** : conditionnel à « si votre SEV permet d'envoyer les factures électroniquement » — Resto360 ne le fait pas, se déclare simplement non applicable |
@@ -68,7 +65,7 @@ dans la déclaration plutôt que de construire la fonctionnalité).
 | FO-129 | Présence du fuseau horaire | Probablement couvert (`utc` obligatoire déjà confirmé en direct, commit a90f125) |
 | FO-130 | Pourboires | Couvert |
 | FO-131 | Gestion des redevances | **Sans objet** — le document le dit explicitement : secteur Transport rémunéré de personnes seulement |
-| FO-132 | Taille maximale d'un lot (256 ko) | **Gap** : `mev-offline-queue.js` n'a pas de découpage/limite de taille de lot |
+| FO-132 | Taille maximale d'un lot (256 ko) | **Fait** : `mev-offline-queue.js` scinde maintenant un lot trop volumineux en groupes consécutifs (plus ancien en premier), envoyés un par un, en s'arrêtant au premier échec |
 
 ## SW-77 — cas numérotés (001–037, 103, 500–512, 999.999)
 
@@ -110,10 +107,14 @@ dans la déclaration plutôt que de construire la fonctionnalité).
 
 ## Prochaine étape suggérée
 
-1. Trancher la question du mode Serveur (bloque Cas 500 et toute la variante 5XX de chaque cas).
-2. Compléter le SW-78 (FO-1xx) — c'est ce que Revenu Québec exige de faire en premier, et plusieurs
-   cases y sont plus petites/mécaniques (verrouillage après inactivité, suppression de certificat,
-   limite de taille de lot) que les cas SW-77 encore ouverts.
+1. ~~Trancher la question du mode Serveur~~ — fait, mode SEV seul. Reste une action utilisateur :
+   retirer « Serveur » de l'inscription du produit dans Mon dossier pour les partenaires.
+2. SW-78 (FO-1xx) : fait dans cette passe — FO-109 (suppression de certificat, + correction du
+   bug REM sans `noSerie`), FO-132 (limite de taille de lot), FO-103 (verrouillage après
+   inactivité). Encore ouverts : FO-102 (fermeture de session à la fermeture de l'appli — demande
+   de changer le stockage de session dans 13 fichiers, à faire avec un appareil réel pour vérifier),
+   FO-127 (avertir avant échéance du certificat), FO-107/108/110/111/120 à vérifier plutôt qu'à
+   construire (voir tableau ci-dessus).
 3. Puis fermer les gaps SW-77 confirmés : rapport utilisateur transmis en vrai (103/603), mode
    Formation (008/508), transférer un item (022/522), grouper des factures (020/520), précisions
    d'item (030/530), distinction carte crédit/débit, annulation et note de crédit réellement

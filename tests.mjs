@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import {buildItems,buildMont,taxIndicator,interpretCodRetour,buildSignatureInput,buildTransactionSignatureInput,buildOfflineBatchEnvelope,buildReqCertif,buildReqUtil,validateSevText} from './mev-protocol.js';
+import {buildItems,buildMont,taxIndicator,interpretCodRetour,buildSignatureInput,buildTransactionSignatureInput,buildOfflineBatchEnvelope,buildReqCertif,buildReqUtil,parseCertificateSerialHex,validateSevText} from './mev-protocol.js';
+import {splitIntoBatches} from './mev-offline-queue.js';
 
 function round2(n){return Math.round((Number(n)+Number.EPSILON)*100)/100}
 function calcTax(sub){const gst=round2(sub*0.05),qst=round2(sub*0.09975);return {gst,qst,total:round2(sub+gst+qst)}}
@@ -85,6 +86,35 @@ assert.doesNotMatch(injectLocalReference('Restaurant\nPAIEMENT REÇU\nTOTAL 10 $
 const liveReceipt=injectLocalReference('Restaurant\nPAIEMENT REÇU\nTOTAL 10 $','SP-1',{certified:true,environment:'DEV'});
 assert.match(liveReceipt,/TRANSMIS AU MEV-WEB, ENVIRONNEMENT DEV/);
 assert.doesNotMatch(liveReceipt,/TRANSPORT MEV OFFICIEL NON CONFIGURÉ/);
+
+// parseCertificateSerialHex: hand-built minimal DER (Certificate{ TBSCertificate{ [0] EXPLICIT
+// version=2, serialNumber=0x1234ABCD } }) -- exercises both the optional-version-skip and the
+// serial extraction without needing a real Revenu Québec-issued certificate as a fixture.
+{
+  const tbs = Buffer.concat([
+    Buffer.from([0xa0, 0x03, 0x02, 0x01, 0x02]), // [0] EXPLICIT version INTEGER 2
+    Buffer.from([0x02, 0x04, 0x12, 0x34, 0xab, 0xcd]), // serialNumber INTEGER 0x1234ABCD
+  ]);
+  const cert = Buffer.concat([Buffer.from([0x30, tbs.length]), tbs]);
+  const wrapped = Buffer.concat([Buffer.from([0x30, cert.length]), cert]);
+  const pem = `-----BEGIN CERTIFICATE-----\n${wrapped.toString('base64')}\n-----END CERTIFICATE-----`;
+  assert.equal(parseCertificateSerialHex(pem), '1234ABCD');
+}
+
+// SW-78 FO-132: a transLot batch over the 256 ko cap must be split into consecutive,
+// oldest-first groups that each fit, not sent as one oversized request.
+{
+  const row = (n) => ({ transActu: { noTrans: String(n), signa: { actu: `sig${n}` }, pad: 'x'.repeat(100) } });
+  const rows = Array.from({ length: 10 }, (_, i) => row(i));
+  // Each row's own transLot-wrapped size is well under 1000 bytes; capping at 900 forces a
+  // split into multiple groups instead of one.
+  const groups = splitIntoBatches(rows, 900);
+  assert.ok(groups.length > 1, 'expected more than one batch once the cap is exceeded');
+  assert.deepEqual(groups.flat(), rows, 'splitting must not drop or reorder any transaction');
+  for (const g of groups) assert.ok(g.length >= 1);
+  // Well under the cap: everything fits in one batch, unchanged from before FO-132.
+  assert.deepEqual(splitIntoBatches(rows, 1_000_000), [rows]);
+}
 
 // mev-protocol.js: real SW-73 field builders, checked against the worked example printed in
 // SW-76 4.4.1 (Michel Untel enr., 1 item at 4,80 $, TPS 0,24 $, TVQ 0,48 $, total 5,52 $).

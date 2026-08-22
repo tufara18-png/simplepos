@@ -11,7 +11,8 @@ function blockKitchenSentFallback(){const original=window.confirm.bind(window);w
 blockKitchenSentFallback();
 Promise.all([
   import('/pivots.js'),
-  import('/demo-mode.js')
+  import('/demo-mode.js'),
+  import('/session-lock.js')
 ])
   .then(()=>import('/sw76-readiness.js'))
   .then(()=>import('/mev-enrollment.js'))

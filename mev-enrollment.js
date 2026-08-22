@@ -3,7 +3,7 @@
 // an authorization code received by mail) -- there is nothing to invent, so nothing here
 // guesses at those. On any platform without MevKeystore (everywhere except the Android
 // wrapper today), the card explains that instead of pretending to work.
-import { buildReqCertif, endpointFor } from './mev-protocol.js';
+import { buildReqCertif, endpointFor, parseCertificateSerialHex } from './mev-protocol.js';
 
 const CFG = window.RESTO360_CONFIG || {};
 const API = CFG.supabaseUrl ? `${CFG.supabaseUrl}/rest/v1` : '';
@@ -44,6 +44,34 @@ function fieldRow(id, label, value = '', placeholder = '') {
   return `<label>${label}<input id="${id}" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}" autocomplete="off"></label>`;
 }
 
+function certifHeaders(r, freshCfg, freshDevice) {
+  return {
+    ENVIRN: freshCfg.environment || 'DEV',
+    CASESSAI: '000.000',
+    APPRLINIT: 'SEV',
+    // SW-77 3.2 "Identifiant de l'appareil" : la valeur initiale d'un appareil neuf est
+    // littéralement "0000-0000-0000", jamais une valeur inventée par le SEV.
+    IDAPPRL: freshDevice.id_apprl || '0000-0000-0000',
+    NOTPS: r.gst_number,
+    NOTVQ: r.qst_number,
+    IDSEV: freshCfg.id_sev,
+    IDVERSI: freshCfg.id_versi,
+    CODCERTIF: freshCfg.cod_certif,
+    IDPARTN: freshCfg.id_partn,
+    VERSI: freshCfg.versi,
+    // "0" pour une première certification (SW-73 4.3.1.1), jamais absent.
+    VERSIPARN: freshCfg.versi_parn || '0',
+  };
+}
+
+async function logCertifRequest(r, deviceId, headers, reqCertif, sent, data, ok) {
+  await api('mev_partner_requests', { method: 'POST', prefer: 'return=minimal', body: {
+    restaurant_id: r.id, device_id: deviceId || null, request_type: 'certificats',
+    environment: headers.ENVIRN, request_headers: headers, request_body: reqCertif,
+    response_status: sent.status, response_body: data, error_code: ok ? null : String(sent.status), error_message: data?.retourCertif?.listErr?.[0]?.mess || null,
+  } });
+}
+
 /**
  * Renders the enrolment form/status/actions into an arbitrary host element -- used both by
  * this module's own settings-screen card (installCard below) and by the onboarding wizard
@@ -77,6 +105,7 @@ export async function renderMevEnrollmentInto(host, { onChange } = {}) {
     <div class="button-row">
       <button id="mevGenerateCsr" class="btn" ${nativeReady ? '' : 'disabled'}>Générer une clé et un CSR</button>
       <button id="mevSendCertif" class="btn primary" ${device.csr_pem ? '' : 'disabled'}>Envoyer la requête certificats</button>
+      <button id="mevDeleteCertif" class="btn danger" ${device.certificate_pem ? '' : 'disabled'}>Supprimer le certificat</button>
     </div>
     <div id="mevEnrollResult" class="muted"></div>
   `;
@@ -132,24 +161,14 @@ export async function renderMevEnrollmentInto(host, { onChange } = {}) {
       const freshCfg = await getConfig(r.id);
       const freshDevice = await getDevice(r.id);
       const modif = freshDevice.id_apprl ? 'REM' : 'AJO';
-      const headers = {
-        ENVIRN: freshCfg.environment || 'DEV',
-        CASESSAI: '000.000',
-        APPRLINIT: 'SEV',
-        // SW-77 3.2 "Identifiant de l'appareil" : la valeur initiale d'un appareil neuf est
-        // littéralement "0000-0000-0000", jamais une valeur inventée par le SEV.
-        IDAPPRL: freshDevice.id_apprl || '0000-0000-0000',
-        NOTPS: r.gst_number,
-        NOTVQ: r.qst_number,
-        IDSEV: freshCfg.id_sev,
-        IDVERSI: freshCfg.id_versi,
-        CODCERTIF: freshCfg.cod_certif,
-        IDPARTN: freshCfg.id_partn,
-        VERSI: freshCfg.versi,
-        // "0" pour une première certification (SW-73 4.3.1.1), jamais absent.
-        VERSIPARN: freshCfg.versi_parn || '0',
-      };
-      const { reqCertif } = buildReqCertif({ modif, csrPem: freshDevice.csr_pem });
+      const headers = certifHeaders(r, freshCfg, freshDevice);
+      const { reqCertif } = buildReqCertif({
+        modif,
+        csrPem: freshDevice.csr_pem,
+        // SW-77 Cas 500: a "REM" must name the certificate it replaces. Omitted until now --
+        // every past REM call went out without noSerie at all.
+        certificateSerialToReplace: freshDevice.certificate_pem ? parseCertificateSerialHex(freshDevice.certificate_pem) : null,
+      });
       const url = endpointFor('certificats', modif, headers.ENVIRN);
       // Envoyé directement depuis l'appareil (réseau natif Android), pas via une fonction
       // Supabase : confirmé en direct que le relais Deno perd l'en-tête IDVERSI en chemin.
@@ -157,11 +176,7 @@ export async function renderMevEnrollmentInto(host, { onChange } = {}) {
       const data = JSON.parse(sent.body || '{}');
       const ok = sent.status >= 200 && sent.status < 300;
       if (ok && data?.retourCertif?.idApprl) await upsertDevice(r.id, { id_apprl: data.retourCertif.idApprl, certificate_pem: data.retourCertif.certif || null, certificate_status: data.retourCertif.certif ? 'active' : 'pending', certificate_issued_at: data.retourCertif.certif ? new Date().toISOString() : null });
-      await api('mev_partner_requests', { method: 'POST', prefer: 'return=minimal', body: {
-        restaurant_id: r.id, device_id: freshDevice.id || null, request_type: 'certificats',
-        environment: headers.ENVIRN, request_headers: headers, request_body: reqCertif,
-        response_status: sent.status, response_body: data, error_code: ok ? null : String(sent.status), error_message: data?.retourCertif?.listErr?.[0]?.mess || null,
-      } });
+      await logCertifRequest(r, freshDevice.id, headers, reqCertif, sent, data, ok);
       const resultMessage = ok
         ? 'Requête acceptée par le MEV-WEB — certificat reçu.'
         : `Refusée (${sent.status}) : ${data?.retourCertif?.listErr?.[0]?.mess || 'voir le journal'}`;
@@ -172,6 +187,42 @@ export async function renderMevEnrollmentInto(host, { onChange } = {}) {
     } catch (e) {
       $h('#mevEnrollResult').textContent = `Erreur : ${e.message}`;
     } finally { const b = $h('#mevSendCertif'); if (b) { b.disabled = false; b.textContent = 'Envoyer la requête certificats'; } }
+  };
+
+  // SW-78 FO-109 "Conserver et supprimer un certificat" -- until now Réglages could only add or
+  // (silently, without noSerie -- see above) replace a certificate, never delete one.
+  $h('#mevDeleteCertif').onclick = async () => {
+    if (!confirm('Supprimer le certificat MEV-WEB de cet appareil? Une nouvelle clé et un nouveau certificat seront nécessaires avant de pouvoir transmettre à nouveau en mode réel.')) return;
+    const btn = $h('#mevDeleteCertif'); btn.disabled = true; btn.textContent = 'Suppression…';
+    try {
+      if (!window.Resto360Mev?.isAndroidNative?.()) throw new Error('Suppression disponible seulement dans l’appli Android');
+      const freshCfg = await getConfig(r.id);
+      const freshDevice = await getDevice(r.id);
+      if (!freshDevice.certificate_pem) throw new Error('Aucun certificat à supprimer');
+      const headers = certifHeaders(r, freshCfg, freshDevice);
+      const { reqCertif } = buildReqCertif({ modif: 'SUP', certificateSerialToReplace: parseCertificateSerialHex(freshDevice.certificate_pem) });
+      const url = endpointFor('certificats', 'SUP', headers.ENVIRN);
+      const sent = await window.Resto360Mev.sendRequest({ url, headers, body: JSON.stringify({ reqCertif }) });
+      const data = JSON.parse(sent.body || '{}');
+      const ok = sent.status >= 200 && sent.status < 300;
+      await logCertifRequest(r, freshDevice.id, headers, reqCertif, sent, data, ok);
+      if (ok) {
+        // The MEV-WEB no longer recognizes this certificate; the local Keystore key it was
+        // issued for is now orphaned regardless, so drop it too rather than leaving a private
+        // key around with nothing that can ever use it again.
+        await window.Resto360Mev.deleteKey(DEVICE_ALIAS);
+        await upsertDevice(r.id, { certificate_pem: null, certificate_status: 'deleted', certificate_issued_at: null, csr_pem: null });
+      }
+      const resultMessage = ok
+        ? 'Certificat supprimé. Générez une nouvelle clé et un nouveau CSR avant de transmettre à nouveau.'
+        : `Refusée (${sent.status}) : ${data?.retourCertif?.listErr?.[0]?.mess || 'voir le journal'}`;
+      await renderMevEnrollmentInto(host, { onChange });
+      const freshResult = $h('#mevEnrollResult');
+      if (freshResult) freshResult.textContent = resultMessage;
+      onChange?.();
+    } catch (e) {
+      $h('#mevEnrollResult').textContent = `Erreur : ${e.message}`;
+    } finally { const b = $h('#mevDeleteCertif'); if (b) { b.disabled = false; b.textContent = 'Supprimer le certificat'; } }
   };
 }
 
